@@ -4,3 +4,16 @@
 .name-dialog{width:calc(100% - 32px);max-width:420px;padding:24px;border:1px solid #556344;border-radius:20px;background:#1c2225;color:#f5f8fa}.name-dialog::backdrop{background:rgba(0,0,0,.7)}.name-dialog h2{margin:0 0 20px;font-size:20px}.name-dialog label{display:block;margin-bottom:8px}.name-dialog .actions{justify-content:flex-end}.name-error{color:#ffb2b7;margin:8px 0}
 
 .muscle-tag{display:table;margin-top:7px;padding:4px 8px;border:1px solid #556344;border-radius:20px;background:#293322;color:#c4ff55;font-size:11px;font-weight:600;line-height:1.3}.exercise>.muscle-tag{margin-bottom:12px}
+
+/* Muscle colors retain readable labels as well as distinct hues. */
+.muscle-chest{color:#ffb4bc;background:#402830;border-color:#ffb4bc66}
+.muscle-side-delts{color:#ffcf86;background:#403222;border-color:#ffcf8666}
+.muscle-triceps{color:#cbb7ff;background:#332a49;border-color:#cbb7ff66}
+.muscle-biceps{color:#8fcaff;background:#23364a;border-color:#8fcaff66}
+.muscle-lats{color:#71e1dc;background:#203d3e;border-color:#71e1dc66}
+.muscle-quads{color:#c4ff55;background:#313e22;border-color:#c4ff5566}
+.muscle-hamstrings{color:#f7a7da;background:#43283b;border-color:#f7a7da66}
+.muscle-back{color:#91ddab;background:#253c30;border-color:#91ddab66}
+.muscle-rear-delts{color:#acaeff;background:#2c2e49;border-color:#acaeff66}
+.muscle-brachialis{color:#ffb991;background:#432f26;border-color:#ffb99166}
+.muscle-calves{color:#e6d591;background:#3c3825;border-color:#e6d59166}

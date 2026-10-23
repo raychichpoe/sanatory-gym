@@ -3,24 +3,24 @@
 'use strict';
 const KEY='sanatory-gym-v1';
 const exerciseCatalog=[
- ['incline','Incline Dumbbell Press','Грудь',['Жим гантелей под углом']],
- ['pec-deck','Peck Deck','Грудь',['Pec Deck']],
- ['lateral-raise','Cable Lateral Raises','Плечи · средняя дельта',[]],
- ['triceps','Triceps Pushdown','Трицепс',['Разгибание на блоке']],
- ['overhead-rope','Triceps Overhead Rope','Трицепс',[]],
- ['hammer-press','Hammer Press','Грудь',[]],
- ['bench','Bench Press','Грудь',['Жим штанги лёжа']],
- ['standing-curl','Biceps Stand Curl','Бицепс',[]],
- ['pulldown','Lat Pulldown','Спина · широчайшие',['Тяга верхнего блока']],
- ['legpress','Leg Press','Квадрицепсы',['Жим ногами']],
- ['leg-curl','Leg Curls','Задняя поверхность бедра',[]],
- ['row','Seated Cable Row','Спина',['Горизонтальная тяга']],
- ['rear-delt','Rear Delt Cable','Плечи · задняя дельта',[]],
- ['incline-curl','Incline Biceps Curl','Бицепс',[]],
- ['hammer-curl','Cable Biceps Hammer Curl','Плечевая мышца',[]],
- ['curl','Подъём на бицепс','Бицепс',[]],
- ['squat','Приседания','Квадрицепсы',[]],
- ['calves','Подъём на носки','Икры',[]]
+ ['incline','Incline Dumbbell Press','Chest',['Жим гантелей под углом']],
+ ['pec-deck','Peck Deck','Chest',['Pec Deck']],
+ ['lateral-raise','Cable Lateral Raises','Side delts',[]],
+ ['triceps','Triceps Pushdown','Triceps',['Разгибание на блоке']],
+ ['overhead-rope','Triceps Overhead Rope','Triceps',[]],
+ ['hammer-press','Hammer Press','Chest',[]],
+ ['bench','Bench Press','Chest',['Жим штанги лёжа']],
+ ['standing-curl','Biceps Stand Curl','Biceps',[]],
+ ['pulldown','Lat Pulldown','Lats',['Тяга верхнего блока']],
+ ['legpress','Leg Press','Quads',['Жим ногами']],
+ ['leg-curl','Leg Curls','Hamstrings',[]],
+ ['row','Seated Cable Row','Back',['Горизонтальная тяга']],
+ ['rear-delt','Rear Delt Cable','Rear delts',[]],
+ ['incline-curl','Incline Biceps Curl','Biceps',[]],
+ ['hammer-curl','Cable Biceps Hammer Curl','Brachialis',[]],
+ ['curl','Biceps Curl','Biceps',['Подъём на бицепс']],
+ ['squat','Squat','Quads',['Приседания']],
+ ['calves','Calf Raise','Calves',['Подъём на носки']]
 ];
 const normalizedName=value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
 const catalogEntry=e=>exerciseCatalog.find(c=>[c[1],...c[3]].some(n=>normalizedName(n)===normalizedName(e.name)));
@@ -52,37 +52,48 @@ function applyProgramPack(data){
  }
  data.programPackVersion=1;return true;
 }
-function muscleTag(e){const muscle=e.muscle||catalogEntry(e)?.[2];return muscle?'<span class="muscle-tag">'+esc(muscle)+'</span>':''}
+const muscleGroups=[
+ ['Chest','chest','Грудь'],['Side delts','side-delts','Плечи · средняя дельта'],
+ ['Triceps','triceps','Трицепс'],['Biceps','biceps','Бицепс'],['Lats','lats','Спина · широчайшие'],
+ ['Quads','quads','Квадрицепсы'],['Hamstrings','hamstrings','Задняя поверхность бедра'],
+ ['Back','back','Спина'],['Rear delts','rear-delts','Плечи · задняя дельта'],
+ ['Brachialis','brachialis','Плечевая мышца'],['Calves','calves','Икры']
+];
+const exerciseName=e=>catalogEntry(e)?.[1]||e.name;
+function muscleTag(e){
+ const muscle=e.muscle||catalogEntry(e)?.[2],group=muscleGroups.find(g=>g[0]===muscle||g[2]===muscle);
+ return muscle?'<span class="muscle-tag muscle-'+(group?.[1]||'other')+'">'+esc(group?.[0]||muscle)+'</span>':'';
+}
 const fresh=()=>({programs:JSON.parse(JSON.stringify(templates)),sessions:[],active:null});
 function load(){try{const v=JSON.parse(localStorage.getItem(KEY));return v&&Array.isArray(v.programs)&&Array.isArray(v.sessions)?v:fresh()}catch{return fresh()}}
 let db=load(),tab='home',timerUntil=0;
 const $=id=>document.getElementById(id),uid=()=>crypto.randomUUID(),save=()=>localStorage.setItem(KEY,JSON.stringify(db));
 if(applyProgramPack(db))save();
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const date=s=>new Date(s).toLocaleDateString('ru-RU',{day:'numeric',month:'short',year:'numeric'});
+const date=s=>new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
 const num=v=>Number.isFinite(+v)?Math.max(0,+v):0;
 const volume=s=>s.exercises.reduce((a,e)=>a+e.sets.filter(t=>t.done).reduce((b,t)=>b+num(t.weight)*num(t.reps),0),0);
 const doneSets=s=>s.exercises.reduce((a,e)=>a+e.sets.filter(t=>t.done).length,0);
 function toast(message){const el=$('toast');el.textContent=message;el.style.display='block';clearTimeout(toast.id);toast.id=setTimeout(()=>el.style.display='none',2200)}
 function button(label,action,cls='secondary',attrs=''){return '<button type="button" class="btn '+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>'}
 function navigate(next){calendarState=null;tab=next;render()}
-function render(){const titles={home:'Тренировки',programs:'Мои программы',history:'История',progress:'Прогресс'};$('page-title').textContent=titles[tab];document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('content').innerHTML=tab==='home'?home():tab==='programs'?programs():tab==='history'?history():progress();tick()}
+function render(){const titles={home:'Workouts',programs:'My programs',history:'History',progress:'Progress'};$('page-title').textContent=titles[tab];document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('content').innerHTML=tab==='home'?home():tab==='programs'?programs():tab==='history'?history():progress();tick()}
 function home(){if(db.active)return activeView();const last=db.sessions.at(-1);
-return '<section class="card hero"><span class="pill">YOUR WORKOUT SPACE</span><h2>Становись сильнее.<br>Каждую тренировку.</h2><p class="muted">Записывай подходы, отслеживай веса и побеждай свои рекорды.</p></section>'+
-'<div class="row" style="margin-bottom:18px"><div class="metric"><strong>'+db.sessions.length+'</strong><small>Тренировок</small></div><div class="metric"><strong>'+db.sessions.reduce((a,s)=>a+doneSets(s),0)+'</strong><small>Подходов</small></div><div class="metric"><strong>'+Math.round(db.sessions.reduce((a,s)=>a+volume(s),0)).toLocaleString('ru-RU')+'</strong><small>Объём, кг</small></div></div>'+
-'<h2 class="section-title">Начать тренировку</h2>'+db.programs.map(p=>'<div class="card row"><div><strong>'+esc(p.name)+'</strong><p class="muted small">'+p.exercises.length+' упражнений</p></div>'+button('Начать','start','', 'data-id="'+esc(p.id)+'"')+'</div>').join('')+
-(last?'<div class="card"><span class="muted small">Последняя тренировка</span><h2>'+esc(last.name)+'</h2><p class="muted">'+date(last.finished)+' · '+doneSets(last)+' подходов · '+Math.round(volume(last))+' кг</p></div>':'')+
-'<p class="notice">Прототип: данные пока сохраняются только на этом устройстве. Облачная синхронизация и персональные Telegram-аккаунты будут в следующей версии.</p>'}
+return '<section class="card hero"><span class="pill">YOUR WORKOUT SPACE</span><h2>Get stronger.<br>Every workout.</h2><p class="muted">Log your sets, track your weights and beat your personal bests.</p></section>'+
+'<div class="row" style="margin-bottom:18px"><div class="metric"><strong>'+db.sessions.length+'</strong><small>Workouts</small></div><div class="metric"><strong>'+db.sessions.reduce((a,s)=>a+doneSets(s),0)+'</strong><small>Sets</small></div><div class="metric"><strong>'+Math.round(db.sessions.reduce((a,s)=>a+volume(s),0)).toLocaleString('en-GB')+'</strong><small>Volume, kg</small></div></div>'+
+'<h2 class="section-title">Start a workout</h2>'+db.programs.map(p=>'<div class="card row"><div><strong>'+esc(p.name)+'</strong><p class="muted small">'+p.exercises.length+' exercises</p></div>'+button('Start','start','', 'data-id="'+esc(p.id)+'"')+'</div>').join('')+
+(last?'<div class="card"><span class="muted small">Last workout</span><h2>'+esc(last.name)+'</h2><p class="muted">'+date(last.finished)+' · '+doneSets(last)+' sets · '+Math.round(volume(last))+' kg</p></div>':'')+
+'<p class="notice">Your programs and workout history are saved in this browser. Cloud sync is not available yet.</p>'}
 function start(id){const p=db.programs.find(x=>x.id===id);if(!p)return;db.active={id:uid(),programId:p.id,name:p.name,started:new Date().toISOString(),exercises:p.exercises.map(e=>({id:e.id,name:e.name,muscle:e.muscle||catalogEntry(e)?.[2],sets:[{id:uid(),weight:0,reps:10,done:false}]}))};save();navigate('home')}
-function activeView(){const s=db.active;return '<div class="timer"><div class="row"><div><span class="small muted">ОТДЫХ</span><br><strong id="timer-text">00:00</strong></div><div class="actions" style="margin:0">'+button('1:30','rest','ghost','data-seconds="90"')+button('2:00','rest','ghost','data-seconds="120"')+button('×','stop-rest','secondary')+'</div></div></div>'+
-'<div class="card"><span class="pill">ТРЕНИРОВКА ИДЁТ</span><h2 style="margin-top:10px">'+esc(s.name)+'</h2><p class="muted small">'+doneSets(s)+' выполненных подходов · '+Math.round(volume(s))+' кг объёма</p>'+
-s.exercises.map((e,i)=>'<div class="exercise"><h3>'+esc(e.name)+'</h3>'+muscleTag(e)+'<div class="set-row small muted"><span>#</span><span>Вес, кг</span><span>Повторы</span><span>Готово</span></div>'+
-e.sets.map((t,j)=>'<div class="set-row"><span class="muted">'+(j+1)+'</span><input aria-label="Вес" class="input" type="number" inputmode="decimal" min="0" step="0.5" value="'+t.weight+'" data-field="weight" data-ex="'+i+'" data-set="'+j+'"><input aria-label="Повторы" class="input" type="number" inputmode="numeric" min="0" step="1" value="'+t.reps+'" data-field="reps" data-ex="'+i+'" data-set="'+j+'"><button aria-label="Отметить подход" data-action="toggle-set" data-ex="'+i+'" data-set="'+j+'" class="set-done '+(t.done?'':'off')+'">✓</button></div>').join('')+
-'<div class="actions">'+button('+ Подход','add-set','ghost','data-ex="'+i+'"')+button('Удалить','remove-ex','secondary','data-ex="'+i+'"')+'</div></div>').join('')+
-'<div class="actions">'+button('+ Упражнение','add-ex','secondary')+button('Завершить тренировку','finish','')+button('Отменить','cancel','danger')+'</div></div>'}
+function activeView(){const s=db.active;return '<div class="timer"><div class="row"><div><span class="small muted">REST</span><br><strong id="timer-text">00:00</strong></div><div class="actions" style="margin:0">'+button('1:30','rest','ghost','data-seconds="90"')+button('2:00','rest','ghost','data-seconds="120"')+button('×','stop-rest','secondary')+'</div></div></div>'+
+'<div class="card"><span class="pill">WORKOUT IN PROGRESS</span><h2 style="margin-top:10px">'+esc(s.name)+'</h2><p class="muted small">'+doneSets(s)+' completed sets · '+Math.round(volume(s))+' kg volume</p>'+
+s.exercises.map((e,i)=>'<div class="exercise"><h3>'+esc(exerciseName(e))+'</h3>'+muscleTag(e)+'<div class="set-row small muted"><span>#</span><span>Weight, kg</span><span>Reps</span><span>Done</span></div>'+
+e.sets.map((t,j)=>'<div class="set-row"><span class="muted">'+(j+1)+'</span><input aria-label="Weight" class="input" type="number" inputmode="decimal" min="0" step="0.5" value="'+t.weight+'" data-field="weight" data-ex="'+i+'" data-set="'+j+'"><input aria-label="Reps" class="input" type="number" inputmode="numeric" min="0" step="1" value="'+t.reps+'" data-field="reps" data-ex="'+i+'" data-set="'+j+'"><button aria-label="Mark set complete" data-action="toggle-set" data-ex="'+i+'" data-set="'+j+'" class="set-done '+(t.done?'':'off')+'">✓</button></div>').join('')+
+'<div class="actions">'+button('+ Set','add-set','ghost','data-ex="'+i+'"')+button('Delete','remove-ex','secondary','data-ex="'+i+'"')+'</div></div>').join('')+
+'<div class="actions">'+button('+ Exercise','add-ex','secondary')+button('Finish workout','finish','')+button('Cancel','cancel','danger')+'</div></div>'}
 let calendarState=null;
 const dayKey=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
-const amount=value=>num(value).toLocaleString('ru-RU',{maximumFractionDigits:10});
+const amount=value=>num(value).toLocaleString('en-GB',{maximumFractionDigits:10});
 function exerciseDays(exercise){
  const days=new Map();
  for(const session of db.sessions){
@@ -99,23 +110,23 @@ function exerciseDays(exercise){
  return [...days].sort((a,b)=>b[0].localeCompare(a[0]));
 }
 function resultView(entry){
- if(!entry)return '<p class="muted small">Нет выполненных подходов</p>';
+ if(!entry)return '<p class="muted small">No completed sets yet</p>';
  const [key,sets]=entry;
- return '<div class="exercise-result"><div class="small muted">'+date(key+'T12:00:00')+'</div><ol class="result-sets">'+sets.map(t=>'<li>'+amount(t.weight)+' кг × '+amount(t.reps)+'</li>').join('')+'</ol><strong class="small result-volume">Тоннаж: '+amount(sets.reduce((sum,t)=>sum+num(t.weight)*num(t.reps),0))+' кг</strong></div>';
+ return '<div class="exercise-result"><div class="small muted">'+date(key+'T12:00:00')+'</div><ol class="result-sets">'+sets.map(t=>'<li>'+amount(t.weight)+' kg × '+amount(t.reps)+'</li>').join('')+'</ol><strong class="small result-volume">Volume: '+amount(sets.reduce((sum,t)=>sum+num(t.weight)*num(t.reps),0))+' kg</strong></div>';
 }
 function calendarView(days,attrs){
  const state=calendarState,first=new Date(state.year,state.month,1),count=new Date(state.year,state.month+1,0).getDate(),offset=(first.getDay()+6)%7,recorded=new Set(days.map(d=>d[0]));
  let cells='<span aria-hidden="true"></span>'.repeat(offset);
  for(let n=1;n<=count;n++){
   const key=dayKey(new Date(state.year,state.month,n,12)),has=recorded.has(key);
-  cells+='<button type="button" class="calendar-day '+(has?'has-record ':'')+(state.day===key?'selected':'')+'" data-action="calendar-day" data-day="'+key+'" '+attrs+' '+(has?'':'disabled')+' aria-label="'+date(key+'T12:00:00')+(has?', есть запись':'')+'" aria-pressed="'+(state.day===key)+'">'+n+'</button>';
+  cells+='<button type="button" class="calendar-day '+(has?'has-record ':'')+(state.day===key?'selected':'')+'" data-action="calendar-day" data-day="'+key+'" '+attrs+' '+(has?'':'disabled')+' aria-label="'+date(key+'T12:00:00')+(has?', recorded sets':'')+'" aria-pressed="'+(state.day===key)+'">'+n+'</button>';
  }
- return '<div class="exercise-calendar" role="group" aria-label="Календарь результатов"><div class="row calendar-heading">'+button('‹','calendar-prev','secondary',attrs+' aria-label="Предыдущий месяц"')+'<strong>'+esc(first.toLocaleDateString('ru-RU',{month:'long',year:'numeric'}))+'</strong>'+button('›','calendar-next','secondary',attrs+' aria-label="Следующий месяц"')+'</div><div class="calendar-grid">'+['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d=>'<span class="muted tiny">'+d+'</span>').join('')+cells+'</div><p class="muted tiny">Лаймом отмечены дни с выполненными подходами.</p>'+button('Закрыть календарь','calendar-close','ghost',attrs)+'</div>';
+ return '<div class="exercise-calendar" role="group" aria-label="Results calendar"><div class="row calendar-heading">'+button('‹','calendar-prev','secondary',attrs+' aria-label="Previous month"')+'<strong>'+esc(first.toLocaleDateString('en-GB',{month:'long',year:'numeric'}))+'</strong>'+button('›','calendar-next','secondary',attrs+' aria-label="Next month"')+'</div><div class="calendar-grid">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>'<span class="muted tiny">'+d+'</span>').join('')+cells+'</div><p class="muted tiny">Highlighted days have completed sets.</p>'+button('Close calendar','calendar-close','ghost',attrs)+'</div>';
 }
-function programs(){return '<p class="muted small">Последние выполненные подходы у каждого упражнения. Нажми на календарь, чтобы выбрать другой день.</p>'+db.programs.map((p,pi)=>'<div class="card"><div class="row"><h2>'+esc(p.name)+'</h2>'+button('Удалить','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map((e,ei)=>{
+function programs(){return '<p class="muted small">Your latest completed sets for each exercise. Tap the calendar to view another day.</p>'+db.programs.map((p,pi)=>'<div class="card"><div class="row"><h2>'+esc(p.name)+'</h2>'+button('Delete','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map((e,ei)=>{
  const days=exerciseDays(e),open=calendarState?.pi===pi&&calendarState?.ei===ei,attrs='data-pi="'+pi+'" data-ei="'+ei+'"';
- return '<div class="list-item"><div class="row"><div class="program-exercise-name"><strong>'+esc(e.name)+'</strong>'+muscleTag(e)+'</div><div class="exercise-tools">'+button('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>','calendar-toggle','ghost calendar-toggle',attrs+' aria-label="Календарь: '+esc(e.name)+'" aria-expanded="'+open+'"')+button('×','delete-exercise','secondary','data-id="'+esc(p.id)+'" data-exid="'+esc(e.id)+'" aria-label="Удалить упражнение"')+'</div></div><p class="tiny muted result-label">'+(open?'Результат выбранной даты':'Последний результат')+'</p>'+resultView(open?days.find(d=>d[0]===calendarState.day):days[0])+(open?calendarView(days,attrs):'')+'</div>';
- }).join('')+'<div class="actions">'+button('+ Упражнение','program-ex','ghost','data-id="'+esc(p.id)+'"')+button('Начать','start','','data-id="'+esc(p.id)+'"')+'</div></div>').join('')+button('+ Новая программа','new-program','full')}
+ return '<div class="list-item"><div class="row"><div class="program-exercise-name"><strong>'+esc(exerciseName(e))+'</strong>'+muscleTag(e)+'</div><div class="exercise-tools">'+button('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>','calendar-toggle','ghost calendar-toggle',attrs+' aria-label="Calendar: '+esc(exerciseName(e))+'" aria-expanded="'+open+'"')+button('×','delete-exercise','secondary','data-id="'+esc(p.id)+'" data-exid="'+esc(e.id)+'" aria-label="Remove exercise"')+'</div></div><p class="tiny muted result-label">'+(open?'Selected date':'Latest result')+'</p>'+resultView(open?days.find(d=>d[0]===calendarState.day):days[0])+(open?calendarView(days,attrs):'')+'</div>';
+ }).join('')+'<div class="actions">'+button('+ Exercise','program-ex','ghost','data-id="'+esc(p.id)+'"')+button('Start','start','','data-id="'+esc(p.id)+'"')+'</div></div>').join('')+button('+ New program','new-program','full')}
 function calendarAction(action,b){
  const pi=Number(b.dataset.pi),ei=Number(b.dataset.ei);
  if(action==='calendar-toggle'){
@@ -130,18 +141,18 @@ function calendarAction(action,b){
  const target=action==='calendar-close'||(action==='calendar-toggle'&&!calendarState)?'calendar-toggle':action;
  document.querySelector('[data-action="'+target+'"][data-pi="'+pi+'"][data-ei="'+ei+'"]'+(action==='calendar-day'?'[data-day="'+b.dataset.day+'"]':''))?.focus({preventScroll:true});
 }
-function history(){return db.sessions.length?db.sessions.slice().reverse().map(s=>'<div class="card"><div class="row"><h2>'+esc(s.name)+'</h2><span class="muted small">'+date(s.finished)+'</span></div><p class="muted small">'+doneSets(s)+' подходов · '+Math.round(volume(s))+' кг</p>'+s.exercises.map(e=>'<div class="list-item"><strong>'+esc(e.name)+'</strong><div class="muted small">'+e.sets.filter(t=>t.done).map(t=>esc(t.weight)+' кг × '+esc(t.reps)).join(' · ')+'</div></div>').join('')+'</div>').join(''):'<div class="empty"><strong>История пока пуста</strong>Заверши первую тренировку, и она появится здесь.</div>'}
-function progress(){if(!db.sessions.length)return '<div class="empty"><strong>Прогресс начинается с первой тренировки</strong>Заверши тренировку, чтобы увидеть результаты.</div>';const names=[...new Set(db.sessions.flatMap(s=>s.exercises.map(e=>e.name)))];return '<div class="card"><h2>Общий прогресс</h2><div class="row"><div class="metric"><strong>'+db.sessions.length+'</strong><small>Тренировок</small></div><div class="metric"><strong>'+Math.round(db.sessions.reduce((a,s)=>a+volume(s),0))+'</strong><small>Всего кг</small></div></div></div><h2 class="section-title">Максимальные рабочие веса</h2>'+names.map(n=>{const points=db.sessions.flatMap(s=>s.exercises.filter(e=>e.name===n).flatMap(e=>e.sets.filter(t=>t.done).map(t=>num(t.weight))));const max=Math.max(...points,0);return '<div class="card"><div class="row"><strong>'+esc(n)+'</strong><strong>'+max+' кг</strong></div><div class="bar"><span style="width:'+(max?100:0)+'%"></span></div><p class="muted tiny">'+points.length+' записанных подходов</p></div>'}).join('')}
-function finish(){if(!db.active)return;if(!doneSets(db.active)){toast('Отметь хотя бы один выполненный подход');return}db.active.finished=new Date().toISOString();db.sessions.push(db.active);db.active=null;save();timerUntil=0;navigate('history');toast('Тренировка сохранена')}
+function history(){return db.sessions.length?db.sessions.slice().reverse().map(s=>'<div class="card"><div class="row"><h2>'+esc(s.name)+'</h2><span class="muted small">'+date(s.finished)+'</span></div><p class="muted small">'+doneSets(s)+' sets · '+Math.round(volume(s))+' kg</p>'+s.exercises.map(e=>'<div class="list-item"><strong>'+esc(exerciseName(e))+'</strong>'+muscleTag(e)+'<div class="muted small">'+e.sets.filter(t=>t.done).map(t=>esc(t.weight)+' kg × '+esc(t.reps)).join(' · ')+'</div></div>').join('')+'</div>').join(''):'<div class="empty"><strong>No workouts yet</strong>Finish your first workout to see it here.</div>'}
+function progress(){if(!db.sessions.length)return '<div class="empty"><strong>Your progress starts with your first workout</strong>Finish a workout to see your results.</div>';const names=[...new Set(db.sessions.flatMap(s=>s.exercises.map(e=>e.name)))];return '<div class="card"><h2>Overall progress</h2><div class="row"><div class="metric"><strong>'+db.sessions.length+'</strong><small>Workouts</small></div><div class="metric"><strong>'+Math.round(db.sessions.reduce((a,s)=>a+volume(s),0))+'</strong><small>Total kg</small></div></div></div><h2 class="section-title">Heaviest working weights</h2>'+names.map(n=>{const points=db.sessions.flatMap(s=>s.exercises.filter(e=>e.name===n).flatMap(e=>e.sets.filter(t=>t.done).map(t=>num(t.weight))));const max=Math.max(...points,0);return '<div class="card"><div class="row"><strong>'+esc(exerciseName({name:n}))+'</strong><strong>'+max+' kg</strong></div><div class="bar"><span style="width:'+(max?100:0)+'%"></span></div><p class="muted tiny">'+points.length+' recorded sets</p></div>'}).join('')}
+function finish(){if(!db.active)return;if(!doneSets(db.active)){toast('Mark at least one set as completed');return}db.active.finished=new Date().toISOString();db.sessions.push(db.active);db.active=null;save();timerUntil=0;navigate('history');toast('Workout saved')}
 function ask(text){return new Promise(resolve=>{
  const previous=document.activeElement,dialog=document.createElement('dialog');
  dialog.className='name-dialog';
  dialog.setAttribute('aria-labelledby','name-dialog-title');
- dialog.innerHTML='<form><h2 id="name-dialog-title">'+esc(text)+'</h2><label for="name-dialog-input" class="small muted">Название</label><input id="name-dialog-input" class="input" name="name" maxlength="80" required autocomplete="off" placeholder="Введи название" autofocus><p class="name-error small" role="status"></p><div class="actions"><button type="button" class="btn secondary" data-dismiss>Отмена</button><button type="submit" class="btn">Добавить</button></div></form>';
+ dialog.innerHTML='<form><h2 id="name-dialog-title">'+esc(text)+'</h2><label for="name-dialog-input" class="small muted">Name</label><input id="name-dialog-input" class="input" name="name" maxlength="80" required autocomplete="off" placeholder="Enter a name" autofocus><p class="name-error small" role="status"></p><div class="actions"><button type="button" class="btn secondary" data-dismiss>Cancel</button><button type="submit" class="btn">Add</button></div></form>';
  const finish=value=>{dialog.close();dialog.remove();previous?.focus();resolve(value)};
  dialog.querySelector('form').addEventListener('submit',event=>{
   event.preventDefault();const input=dialog.querySelector('input'),value=input.value.trim();
-  if(!value){dialog.querySelector('.name-error').textContent='Введи название';input.focus();return}
+  if(!value){dialog.querySelector('.name-error').textContent='Enter a name';input.focus();return}
   finish(value.slice(0,80));
  });
  dialog.querySelector('[data-dismiss]').addEventListener('click',()=>finish(null));
@@ -150,22 +161,22 @@ function ask(text){return new Promise(resolve=>{
 })}
 document.addEventListener('click',async e=>{const navButton=e.target.closest('[data-tab]');if(navButton){navigate(navButton.dataset.tab);return}const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,id=b.dataset.id,ex=Number(b.dataset.ex),set=Number(b.dataset.set);
 if(a.startsWith('calendar-')){calendarAction(a,b);return}
-if(a==='start'){if(db.active){toast('Сначала заверши текущую тренировку');navigate('home')}else start(id)}
+if(a==='start'){if(db.active){toast('Finish your current workout first');navigate('home')}else start(id)}
 if(a==='rest'){timerUntil=Date.now()+Number(b.dataset.seconds)*1000;tick()}
 if(a==='stop-rest'){timerUntil=0;tick()}
 if(a==='toggle-set'){let t=db.active.exercises[ex].sets[set];t.done=!t.done;save();render()}
 if(a==='add-set'){const sets=db.active.exercises[ex].sets,prev=sets.at(-1);sets.push({id:uid(),weight:prev?.weight||0,reps:prev?.reps||10,done:false});save();render()}
-if(a==='remove-ex'&&confirm('Удалить упражнение из текущей тренировки?')){db.active.exercises.splice(ex,1);save();render()}
-if(a==='add-ex'){const n=await ask('Название упражнения');if(n&&db.active){db.active.exercises.push({id:uid(),name:n,sets:[{id:uid(),weight:0,reps:10,done:false}]});save();render()}}
+if(a==='remove-ex'&&confirm('Remove this exercise from the current workout?')){db.active.exercises.splice(ex,1);save();render()}
+if(a==='add-ex'){const n=await ask('Add exercise');if(n&&db.active){db.active.exercises.push({id:uid(),name:n,sets:[{id:uid(),weight:0,reps:10,done:false}]});save();render()}}
 if(a==='finish')finish();
-if(a==='cancel'&&confirm('Отменить тренировку? Несохранённые подходы будут потеряны.')){db.active=null;save();timerUntil=0;render()}
-if(a==='new-program'){const n=await ask('Название новой программы');if(n){db.programs.push({id:uid(),name:n,exercises:[]});save();render()}}
-if(a==='delete-program'&&confirm('Удалить программу? История тренировок сохранится.')){calendarState=null;db.programs=db.programs.filter(p=>p.id!==id);save();render()}
-if(a==='program-ex'){const n=await ask('Название упражнения'),p=db.programs.find(p=>p.id===id);if(n&&p){p.exercises.push({id:uid(),name:n});save();render()}}
-if(a==='delete-exercise'&&confirm('Удалить упражнение?')){calendarState=null;const p=db.programs.find(p=>p.id===id);p.exercises=p.exercises.filter(e=>e.id!==b.dataset.exid);save();render()}
+if(a==='cancel'&&confirm('Cancel this workout? Unsaved sets will be lost.')){db.active=null;save();timerUntil=0;render()}
+if(a==='new-program'){const n=await ask('New program');if(n){db.programs.push({id:uid(),name:n,exercises:[]});save();render()}}
+if(a==='delete-program'&&confirm('Delete this program? Workout history will be kept.')){calendarState=null;db.programs=db.programs.filter(p=>p.id!==id);save();render()}
+if(a==='program-ex'){const n=await ask('Add exercise'),p=db.programs.find(p=>p.id===id);if(n&&p){p.exercises.push({id:uid(),name:n});save();render()}}
+if(a==='delete-exercise'&&confirm('Remove this exercise?')){calendarState=null;const p=db.programs.find(p=>p.id===id);p.exercises=p.exercises.filter(e=>e.id!==b.dataset.exid);save();render()}
 });
 document.addEventListener('change',e=>{const input=e.target.closest('[data-field]');if(!input||!db.active)return;const t=db.active.exercises[Number(input.dataset.ex)]?.sets[Number(input.dataset.set)];if(!t)return;t[input.dataset.field]=num(input.value);save()});
-function tick(){const el=$('timer-text');if(!el)return;const remaining=Math.max(0,Math.ceil((timerUntil-Date.now())/1000));el.textContent=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');if(!remaining&&timerUntil){timerUntil=0;toast('Время отдыха закончилось');if(navigator.vibrate)navigator.vibrate(200)}}
+function tick(){const el=$('timer-text');if(!el)return;const remaining=Math.max(0,Math.ceil((timerUntil-Date.now())/1000));el.textContent=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');if(!remaining&&timerUntil){timerUntil=0;toast('Rest time is over');if(navigator.vibrate)navigator.vibrate(200)}}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&calendarState){const {pi,ei}=calendarState;calendarAction('calendar-close',{dataset:{pi,ei}})}});
 setInterval(tick,1000);
 try{window.Telegram?.WebApp?.ready();window.Telegram?.WebApp?.expand();const name=window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name;if(name)$('avatar').textContent=name.slice(0,2).toUpperCase()}catch{}

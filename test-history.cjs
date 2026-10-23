@@ -17,13 +17,13 @@ source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultVi
 vm.runInContext(source,context);
 const t=context.test,days=t.exerciseDays(data.programs[0].exercises[0]);
 assert.equal(days.length,2);assert.equal(days[0][0],'2026-10-22');assert.equal(days[0][1].length,2);
-assert.match(t.resultView(days[0]),/940 кг/);assert.doesNotMatch(t.resultView(days[0]),/80 кг/);
-assert.doesNotMatch(t.programs(),/class="exercise-calendar"/);assert.match(t.programs(),/Нет выполненных подходов/);
+assert.match(t.resultView(days[0]),/940 kg/);assert.doesNotMatch(t.resultView(days[0]),/80 kg/);
+assert.doesNotMatch(t.programs(),/class="exercise-calendar"/);assert.match(t.programs(),/No completed sets yet/);
 const b={dataset:{pi:'0',ei:'0'}};
 t.calendarAction('calendar-toggle',b);assert.equal(t.getState().day,'2026-10-22');assert.match(t.programs(),/has-record/);
-t.calendarAction('calendar-day',{dataset:{pi:'0',ei:'0',day:'2026-10-20'}});assert.match(t.programs(),/400 кг/);
+t.calendarAction('calendar-day',{dataset:{pi:'0',ei:'0',day:'2026-10-20'}});assert.match(t.programs(),/400 kg/);
 t.calendarAction('calendar-prev',b);assert.equal(t.getState().month,8);
-t.calendarAction('calendar-close',b);assert.equal(t.getState(),null);assert.match(t.programs(),/940 кг/);
+t.calendarAction('calendar-close',b);assert.equal(t.getState(),null);assert.match(t.programs(),/940 kg/);
 t.calendarAction('calendar-toggle',b);listeners.keydown({key:'Escape'});assert.equal(t.getState(),null);
 assert.equal(writes,0);assert.equal(JSON.stringify(data),stored);
 console.log('PASS: latest date, completed sets, same-day aggregation, renamed exercise ID, empty history, calendar selection/navigation/close/Escape, no storage writes');
@@ -43,12 +43,12 @@ console.log('PASS: latest date, completed sets, same-day aggregation, renamed ex
  await listeners.click({target:{closest(selector){return selector==='[data-tab]'?{dataset:{tab:'programs'}}:null}}});
  const click=(action,id)=>listeners.click({target:{closest(selector){return selector==='[data-action]'?{dataset:{action,id}}:null}}});
  let pending=click('new-program');assert.equal(dialog.open,true);
- dialog.input.value='   ';dialog.handlers['form:submit']({preventDefault(){}});assert.equal(dialog.error.textContent,'Введи название');
+ dialog.input.value='   ';dialog.handlers['form:submit']({preventDefault(){}});assert.equal(dialog.error.textContent,'Enter a name');
  dialog.input.value='  Моя программа  ';dialog.handlers['form:submit']({preventDefault(){}});await pending;
  assert.match(elements.content.innerHTML,/Моя программа/);
  const programId=elements.content.innerHTML.match(/data-action="program-ex" data-id="([^"]+)"/)[1];
  pending=click('program-ex',programId);dialog.input.value='Приседания';dialog.handlers['form:submit']({preventDefault(){}});await pending;
- assert.match(elements.content.innerHTML,/Приседания/);
+ assert.match(elements.content.innerHTML,/Squat/);
  const before=writes;pending=click('new-program');dialog.handlers['[data-dismiss]:click']();await pending;assert.equal(writes,before);
  pending=click('new-program');dialog.handlers.cancel({preventDefault(){}});await pending;assert.equal(writes,before);
  console.log('PASS: create program from empty list, trim/validate name, add exercise, cancel and Escape do not save');
@@ -65,5 +65,12 @@ assert.equal(t.applyProgramPack(pack),false);
 pack.programs.pop();assert.equal(t.applyProgramPack(pack),false);assert.equal(pack.programs.length,3);
 assert.equal(JSON.stringify(pack.sessions),historyBefore);assert.equal(pack.active.id,'keep');
 const custom={programs:[{id:'custom',name:'Push Day 1',exercises:[{id:'old-id',name:'Pec Deck'},{id:'extra',name:'Custom exercise'}]}],sessions:[]};
-t.applyProgramPack(custom);assert.equal(custom.programs.length,4);assert.equal(custom.programs[0].exercises.filter(e=>/Pe?ck? Deck/.test(e.name)).length,1);assert.equal(custom.programs[0].exercises[0].id,'old-id');assert.equal(custom.programs[0].exercises[0].muscle,'Грудь');assert.equal(custom.programs[0].exercises.some(e=>e.id==='extra'),true);
+t.applyProgramPack(custom);assert.equal(custom.programs.length,4);assert.equal(custom.programs[0].exercises.filter(e=>/Pe?ck? Deck/.test(e.name)).length,1);assert.equal(custom.programs[0].exercises[0].id,'old-id');assert.equal(custom.programs[0].exercises[0].muscle,'Chest');assert.equal(custom.programs[0].exercises.some(e=>e.id==='extra'),true);
 console.log('PASS: four programs, 23 tagged exercises, aliases, no duplicate plans, preserve custom IDs/history/active session, one-time migration');
+for(const [name,slug] of [['Chest','chest'],['Side delts','side-delts'],['Triceps','triceps'],['Biceps','biceps'],['Lats','lats'],['Quads','quads'],['Hamstrings','hamstrings'],['Back','back'],['Rear delts','rear-delts'],['Brachialis','brachialis'],['Calves','calves']]){
+ assert.match(t.muscleTag({muscle:name}),new RegExp('muscle-'+slug+'"'));
+ assert.match(t.muscleTag({muscle:name}),new RegExp('>'+name+'<'));
+}
+assert.match(t.muscleTag({muscle:'Грудь'}),/muscle-chest">Chest</);
+assert.match(t.muscleTag({name:'Жим штанги лёжа'}),/>Chest</);
+console.log('PASS: all 11 muscle colors and English labels, including legacy Russian tags');
