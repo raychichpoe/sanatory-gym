@@ -123,10 +123,16 @@ function calendarView(days,attrs){
  }
  return '<div class="exercise-calendar" role="group" aria-label="Results calendar"><div class="row calendar-heading">'+button('‹','calendar-prev','secondary',attrs+' aria-label="Previous month"')+'<strong>'+esc(first.toLocaleDateString('en-GB',{month:'long',year:'numeric'}))+'</strong>'+button('›','calendar-next','secondary',attrs+' aria-label="Next month"')+'</div><div class="calendar-grid">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>'<span class="muted tiny">'+d+'</span>').join('')+cells+'</div><p class="muted tiny">Highlighted days have completed sets.</p>'+button('Close calendar','calendar-close','ghost',attrs)+'</div>';
 }
-function programs(){return '<p class="muted small">Tap a program to view its exercises and latest results.</p>'+db.programs.map((p,pi)=>'<details class="card program-details" data-program-id="'+esc(p.id)+'" '+(expandedPrograms.has(String(p.id))?'open':'')+'><summary class="program-summary"><span><strong>'+esc(p.name)+'</strong><span class="muted small program-count">'+p.exercises.length+' exercises</span></span><span class="program-chevron" aria-hidden="true">⌄</span></summary><div class="program-body"><div class="actions program-manage">'+button('Delete program','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map((e,ei)=>{
+function programs(){return '<p class="muted small">Use the arrows to reorder programs. Tap a program to view its exercises.</p>'+db.programs.map((p,pi)=>'<details class="card program-details" data-program-id="'+esc(p.id)+'" '+(expandedPrograms.has(String(p.id))?'open':'')+'><summary class="program-summary"><span><strong>'+esc(p.name)+'</strong><span class="muted small program-count">'+p.exercises.length+' exercises</span></span><span class="program-order">'+button('↑','move-program-up','secondary','data-id="'+esc(p.id)+'" aria-label="Move '+esc(p.name)+' up" '+(pi===0?'disabled':''))+button('↓','move-program-down','secondary','data-id="'+esc(p.id)+'" aria-label="Move '+esc(p.name)+' down" '+(pi===db.programs.length-1?'disabled':''))+'<span class="program-chevron" aria-hidden="true">⌄</span></span></summary><div class="program-body"><div class="actions program-manage">'+button('Delete program','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map((e,ei)=>{
  const days=exerciseDays(e),open=calendarState?.pi===pi&&calendarState?.ei===ei,attrs='data-pi="'+pi+'" data-ei="'+ei+'"';
  return '<div class="list-item"><div class="row"><div class="program-exercise-name"><strong>'+esc(exerciseName(e))+'</strong>'+muscleTag(e)+'</div><div class="exercise-tools">'+button('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>','calendar-toggle','ghost calendar-toggle',attrs+' aria-label="Calendar: '+esc(exerciseName(e))+'" aria-expanded="'+open+'"')+button('×','delete-exercise','secondary','data-id="'+esc(p.id)+'" data-exid="'+esc(e.id)+'" aria-label="Remove exercise"')+'</div></div><p class="tiny muted result-label">'+(open?'Selected date':'Latest result')+'</p>'+resultView(open?days.find(d=>d[0]===calendarState.day):days[0])+(open?calendarView(days,attrs):'')+'</div>';
  }).join('')+'<div class="actions">'+button('+ Exercise','program-ex','ghost','data-id="'+esc(p.id)+'"')+button('Start','start','','data-id="'+esc(p.id)+'"')+'</div></div></details>').join('')+button('+ New program','new-program','full')}
+function moveProgram(id,direction){
+ const index=db.programs.findIndex(p=>p.id===id),next=index+direction;
+ if(index<0||next<0||next>=db.programs.length)return false;
+ [db.programs[index],db.programs[next]]=[db.programs[next],db.programs[index]];
+ calendarState=null;save();return true;
+}
 function calendarAction(action,b){
  const pi=Number(b.dataset.pi),ei=Number(b.dataset.ei);
  if(action==='calendar-toggle'){
@@ -221,6 +227,7 @@ function ask(text){return new Promise(resolve=>{
  document.body.append(dialog);dialog.showModal();
 })}
 document.addEventListener('click',async e=>{const navButton=e.target.closest('[data-tab]');if(navButton){navigate(navButton.dataset.tab);return}const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,id=b.dataset.id,ex=Number(b.dataset.ex),set=Number(b.dataset.set);
+if(a==='move-program-up'||a==='move-program-down'){e.preventDefault();if(moveProgram(id,a==='move-program-up'?-1:1)){render();document.querySelector('[data-action="'+a+'"][data-id="'+CSS.escape(id)+'"]')?.focus({preventScroll:true})}return}
 if(a==='edit-weight'){const entry=weightEntries().find(e=>e.day===b.dataset.day);if(entry){$('body-weight-date').value=entry.day;$('body-weight-value').value=entry.weight;$('body-weight-value').focus();$('weight-form').scrollIntoView({behavior:'smooth',block:'center'})}return}
 if(a==='delete-weight'){db.bodyWeights=weightEntries().filter(e=>e.day!==b.dataset.day);save();render();toast('Weight record deleted');return}
 if(a.startsWith('calendar-')){calendarAction(a,b);return}
