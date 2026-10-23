@@ -81,8 +81,7 @@ function navigate(next){expandedPrograms.clear();calendarState=null;tab=next;ren
 function render(){const titles={home:'Workouts',programs:'My programs',history:'History',progress:'Progress',weight:'Weight'};$('page-title').textContent=titles[tab];document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('content').innerHTML=tab==='home'?home():tab==='programs'?programs():tab==='history'?history():tab==='weight'?weightView():progress();tick()}
 function home(){if(db.active)return activeView();const last=db.sessions.slice().sort((a,b)=>new Date(b.finished)-new Date(a.finished))[0];
 return '<section class="card hero mascot-hero"><h2 lang="ru">Не базарим,<br>а тренируемся</h2><img class="workout-mascot" src="./assets/workout-mascot-v2.png" alt="" width="1122" height="1402" fetchpriority="high"></section>'+
-'<div class="row" style="margin-bottom:18px"><div class="metric"><strong>'+db.sessions.length+'</strong><small>Workouts</small></div><div class="metric"><strong>'+db.sessions.reduce((a,s)=>a+doneSets(s),0)+'</strong><small>Sets</small></div></div>'+
-'<h2 class="section-title">Start a workout</h2>'+db.programs.map(p=>'<div class="card row"><div><strong>'+esc(p.name)+'</strong><p class="muted small">'+p.exercises.length+' exercises</p></div>'+button('Start','start','', 'data-id="'+esc(p.id)+'"')+'</div>').join('')+
+splitHome()+
 (last?workoutCard(last,true):'')}
 function start(id){const p=db.programs.find(x=>x.id===id);if(!p)return;db.active={id:uid(),programId:p.id,name:p.name,started:new Date().toISOString(),exercises:p.exercises.map(e=>({id:e.id,name:e.name,muscle:e.muscle||catalogEntry(e)?.[2],sets:[{id:uid(),weight:0,reps:10,done:false}]}))};save();navigate('home')}
 function activeView(){const s=db.active;return '<div class="timer"><div class="row"><div><span class="small muted">REST</span><br><strong id="timer-text">00:00</strong></div><div class="actions" style="margin:0">'+button('1:30','rest','ghost','data-seconds="90"')+button('2:00','rest','ghost','data-seconds="120"')+button('3:00','rest','ghost','data-seconds="180"')+button('×','stop-rest','secondary')+'</div></div></div>'+
@@ -123,16 +122,26 @@ function calendarView(days,attrs){
  }
  return '<div class="exercise-calendar" role="group" aria-label="Results calendar"><div class="row calendar-heading">'+button('‹','calendar-prev','secondary',attrs+' aria-label="Previous month"')+'<strong>'+esc(first.toLocaleDateString('en-GB',{month:'long',year:'numeric'}))+'</strong>'+button('›','calendar-next','secondary',attrs+' aria-label="Next month"')+'</div><div class="calendar-grid">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>'<span class="muted tiny">'+d+'</span>').join('')+cells+'</div><p class="muted tiny">Highlighted days have completed sets.</p>'+button('Close calendar','calendar-close','ghost',attrs)+'</div>';
 }
-function programs(){return '<p class="muted small">Use the arrows to reorder programs. Tap a program to view its exercises.</p>'+db.programs.map((p,pi)=>'<details class="card program-details" data-program-id="'+esc(p.id)+'" '+(expandedPrograms.has(String(p.id))?'open':'')+'><summary class="program-summary"><span><strong>'+esc(p.name)+'</strong><span class="muted small program-count">'+p.exercises.length+' exercises</span></span><span class="program-order">'+button('↑','move-program-up','secondary','data-id="'+esc(p.id)+'" aria-label="Move '+esc(p.name)+' up" '+(pi===0?'disabled':''))+button('↓','move-program-down','secondary','data-id="'+esc(p.id)+'" aria-label="Move '+esc(p.name)+' down" '+(pi===db.programs.length-1?'disabled':''))+'<span class="program-chevron" aria-hidden="true">⌄</span></span></summary><div class="program-body"><div class="actions program-manage">'+button('Delete program','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map((e,ei)=>{
+function selectedSplit(){return [...new Set(Array.isArray(db.split)?db.split:[])].filter(id=>db.programs.some(p=>p.id===id))}
+function splitHome(){
+ const ids=selectedSplit();
+ if(!ids.length)return '<div class="card">'+button('CHOOSE YOUR SPLIT','choose-split','full')+'</div>';
+ return '<div class="row split-heading"><h2 class="section-title">Your split</h2>'+button('Edit split','choose-split','ghost')+'</div>'+ids.map((id,i)=>{const p=db.programs.find(p=>p.id===id);return '<div class="card row"><div><span class="muted tiny">DAY '+(i+1)+'</span><br><strong>'+esc(p.name)+'</strong><p class="muted small">'+p.exercises.length+' exercises</p></div>'+button('Start','start','','data-id="'+esc(id)+'"')+'</div>'}).join('');
+}
+function splitEditor(){
+ const ids=selectedSplit();
+ return '<div class="card"><h2>Your split</h2><p class="muted small">Select days below, then set their order here.</p>'+(ids.length?ids.map((id,i)=>'<div class="list-item row"><strong>'+(i+1)+'. '+esc(db.programs.find(p=>p.id===id).name)+'</strong><div class="exercise-tools">'+button('↑','split-up','secondary','data-id="'+esc(id)+'" aria-label="Move day up" '+(i===0?'disabled':''))+button('↓','split-down','secondary','data-id="'+esc(id)+'" aria-label="Move day down" '+(i===ids.length-1?'disabled':''))+button('×','toggle-split','secondary','data-id="'+esc(id)+'" aria-label="Remove day from split"')+'</div></div>').join(''):'<p class="muted small">CHOOSE YOUR SPLIT</p>')+'</div>';
+}
+function changeSplit(id,action){
+ const ids=selectedSplit(),index=ids.indexOf(id);
+ if(action==='toggle-split'){if(index>=0)ids.splice(index,1);else if(db.programs.some(p=>p.id===id))ids.push(id);else return false}
+ else {const next=index+(action==='split-up'?-1:1);if(index<0||next<0||next>=ids.length)return false;[ids[index],ids[next]]=[ids[next],ids[index]]}
+ db.split=ids;save();return true;
+}
+function programs(){return splitEditor()+'<p class="muted small">All programs. Add training days to your split in the order you want.</p>'+ db.programs.map((p,pi)=>'<details class="card program-details" data-program-id="'+esc(p.id)+'" '+(expandedPrograms.has(String(p.id))?'open':'')+'><summary class="program-summary"><span><strong>'+esc(p.name)+'</strong><span class="muted small program-count">'+p.exercises.length+' exercises</span></span><span class="program-order">'+button(selectedSplit().includes(p.id)?'✓ In split':'+ Split','toggle-split','ghost','data-id="'+esc(p.id)+'" aria-pressed="'+selectedSplit().includes(p.id)+'"')+'<span class="program-chevron" aria-hidden="true">⌄</span></span></summary><div class="program-body"><div class="actions program-manage">'+button('Delete program','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map((e,ei)=>{
  const days=exerciseDays(e),open=calendarState?.pi===pi&&calendarState?.ei===ei,attrs='data-pi="'+pi+'" data-ei="'+ei+'"';
  return '<div class="list-item"><div class="row"><div class="program-exercise-name"><strong>'+esc(exerciseName(e))+'</strong>'+muscleTag(e)+'</div><div class="exercise-tools">'+button('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>','calendar-toggle','ghost calendar-toggle',attrs+' aria-label="Calendar: '+esc(exerciseName(e))+'" aria-expanded="'+open+'"')+button('×','delete-exercise','secondary','data-id="'+esc(p.id)+'" data-exid="'+esc(e.id)+'" aria-label="Remove exercise"')+'</div></div><p class="tiny muted result-label">'+(open?'Selected date':'Latest result')+'</p>'+resultView(open?days.find(d=>d[0]===calendarState.day):days[0])+(open?calendarView(days,attrs):'')+'</div>';
  }).join('')+'<div class="actions">'+button('+ Exercise','program-ex','ghost','data-id="'+esc(p.id)+'"')+button('Start','start','','data-id="'+esc(p.id)+'"')+'</div></div></details>').join('')+button('+ New program','new-program','full')}
-function moveProgram(id,direction){
- const index=db.programs.findIndex(p=>p.id===id),next=index+direction;
- if(index<0||next<0||next>=db.programs.length)return false;
- [db.programs[index],db.programs[next]]=[db.programs[next],db.programs[index]];
- calendarState=null;save();return true;
-}
 function calendarAction(action,b){
  const pi=Number(b.dataset.pi),ei=Number(b.dataset.ei);
  if(action==='calendar-toggle'){
@@ -227,7 +236,8 @@ function ask(text){return new Promise(resolve=>{
  document.body.append(dialog);dialog.showModal();
 })}
 document.addEventListener('click',async e=>{const navButton=e.target.closest('[data-tab]');if(navButton){navigate(navButton.dataset.tab);return}const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,id=b.dataset.id,ex=Number(b.dataset.ex),set=Number(b.dataset.set);
-if(a==='move-program-up'||a==='move-program-down'){e.preventDefault();if(moveProgram(id,a==='move-program-up'?-1:1)){render();document.querySelector('[data-action="'+a+'"][data-id="'+CSS.escape(id)+'"]')?.focus({preventScroll:true})}return}
+if(a==='choose-split'){navigate('programs');return}
+if(['toggle-split','split-up','split-down'].includes(a)){e.preventDefault();if(changeSplit(id,a))render();return}
 if(a==='edit-weight'){const entry=weightEntries().find(e=>e.day===b.dataset.day);if(entry){$('body-weight-date').value=entry.day;$('body-weight-value').value=entry.weight;$('body-weight-value').focus();$('weight-form').scrollIntoView({behavior:'smooth',block:'center'})}return}
 if(a==='delete-weight'){db.bodyWeights=weightEntries().filter(e=>e.day!==b.dataset.day);save();render();toast('Weight record deleted');return}
 if(a.startsWith('calendar-')){calendarAction(a,b);return}
@@ -241,7 +251,7 @@ if(a==='add-ex'){const n=await ask('Add exercise');if(n&&db.active){db.active.ex
 if(a==='finish')finish();
 if(a==='cancel'&&confirm('Cancel this workout? Unsaved sets will be lost.')){db.active=null;save();timerUntil=0;render()}
 if(a==='new-program'){const n=await ask('New program');if(n){db.programs.push({id:uid(),name:n,exercises:[]});save();render()}}
-if(a==='delete-program'&&confirm('Delete this program? Workout history will be kept.')){calendarState=null;db.programs=db.programs.filter(p=>p.id!==id);save();render()}
+if(a==='delete-program'&&confirm('Delete this program? Workout history will be kept.')){calendarState=null;db.programs=db.programs.filter(p=>p.id!==id);db.split=selectedSplit();save();render()}
 if(a==='program-ex'){const n=await ask('Add exercise'),p=db.programs.find(p=>p.id===id);if(n&&p){p.exercises.push({id:uid(),name:n});save();render()}}
 if(a==='delete-exercise'&&confirm('Remove this exercise?')){calendarState=null;const p=db.programs.find(p=>p.id===id);p.exercises=p.exercises.filter(e=>e.id!==b.dataset.exid);save();render()}
 });
