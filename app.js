@@ -79,7 +79,7 @@ function button(label,action,cls='secondary',attrs=''){return '<button type="but
 function navigate(next){calendarState=null;tab=next;render()}
 function render(){const titles={home:'Workouts',programs:'My programs',history:'History',progress:'Progress'};$('page-title').textContent=titles[tab];document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('content').innerHTML=tab==='home'?home():tab==='programs'?programs():tab==='history'?history():progress();tick()}
 function home(){if(db.active)return activeView();const last=db.sessions.slice().sort((a,b)=>new Date(b.finished)-new Date(a.finished))[0];
-return '<section class="card hero"><span class="pill">YOUR WORKOUT SPACE</span><h2>Get stronger.<br>Every workout.</h2><p class="muted">Log your sets, track your weights and beat your personal bests.</p></section>'+
+return '<section class="card hero mascot-hero"><h2 lang="ru">Не базарим,<br>а тренируемся</h2><img class="workout-mascot" src="./assets/workout-mascot.png" alt="" width="1122" height="1402" fetchpriority="high"></section>'+
 '<div class="row" style="margin-bottom:18px"><div class="metric"><strong>'+db.sessions.length+'</strong><small>Workouts</small></div><div class="metric"><strong>'+db.sessions.reduce((a,s)=>a+doneSets(s),0)+'</strong><small>Sets</small></div></div>'+
 '<h2 class="section-title">Start a workout</h2>'+db.programs.map(p=>'<div class="card row"><div><strong>'+esc(p.name)+'</strong><p class="muted small">'+p.exercises.length+' exercises</p></div>'+button('Start','start','', 'data-id="'+esc(p.id)+'"')+'</div>').join('')+
 (last?workoutCard(last,true):'')+
