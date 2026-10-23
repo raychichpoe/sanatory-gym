@@ -13,7 +13,7 @@ const stored=JSON.stringify(data),listeners={},elements={};let writes=0;
 const context={console,Date,Map,Set,Number,String,JSON,Math,crypto:require('node:crypto').webcrypto,navigator:{},window:{},setInterval(){},clearTimeout(){},setTimeout(){},localStorage:{getItem:()=>stored,setItem(){writes++}},document:{getElementById(id){return elements[id]??={textContent:'',innerHTML:'',style:{}}},querySelectorAll:()=>[],querySelector:()=>({focus(){}}),addEventListener(type,fn){listeners[type]=fn}}};
 vm.createContext(context);
 let source=readFileSync(__dirname+'/app.js','utf8').replace(/\r\n/g,'\n');
-source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultView,programs,calendarAction,applyProgramPack,muscleTag,templates,workoutCard,home,history,progressSeries,progressChart,progress,validWeightEntry,recordBodyWeight,weightEntries,weightView,selectedSplit,changeSplit,splitHome,getState:()=>calendarState};render();\n})();');
+source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultView,programs,calendarAction,applyProgramPack,muscleTag,templates,workoutCard,home,history,deleteWorkout,progressSeries,progressChart,progress,validWeightEntry,recordBodyWeight,weightEntries,weightView,selectedSplit,changeSplit,splitHome,getState:()=>calendarState};render();\n})();');
 vm.runInContext(source,context);
 const t=context.test,days=t.exerciseDays(data.programs[0].exercises[0]);
 assert.equal(days.length,2);assert.equal(days[0][0],'2026-10-22');assert.equal(days[0][1].length,2);
@@ -108,3 +108,9 @@ console.log('PASS: body weight validation, chronological dates, update same date
 assert.match(t.splitHome(),/CHOOSE YOUR SPLIT/);assert.equal(t.changeSplit('push','toggle-split'),true);assert.equal(t.selectedSplit().join(','),'push');assert.match(t.splitHome(),/DAY 1/);assert.equal(t.changeSplit('push','toggle-split'),true);
 assert.equal(t.changeSplit('missing','toggle-split'),false);
 console.log('PASS: reorder rejects missing programs and out-of-range moves');
+
+assert.match(t.history(),/data-action="delete-workout"/);
+assert.equal(t.deleteWorkout(-1),false);assert.equal(t.deleteWorkout(999),false);
+assert.equal(t.deleteWorkout(0),true);
+assert.match(t.resultView(t.exerciseDays(data.programs[0].exercises[0])[0]),/440 kg/);
+console.log('PASS: delete a single legacy workout without ID, reject invalid index, exercise history recalculated');

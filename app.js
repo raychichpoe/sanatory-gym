@@ -157,14 +157,21 @@ function calendarAction(action,b){
  const target=action==='calendar-close'||(action==='calendar-toggle'&&!calendarState)?'calendar-toggle':action;
  document.querySelector('[data-action="'+target+'"][data-pi="'+pi+'"][data-ei="'+ei+'"]'+(action==='calendar-day'?'[data-day="'+b.dataset.day+'"]':''))?.focus({preventScroll:true});
 }
-function workoutCard(session,last=false){
+function workoutCard(session,last=false,sessionIndex=-1){
  const exercises=(session.exercises||[]).filter(e=>(e.sets||[]).some(t=>t.done));
  return '<details class="card workout-details"><summary class="workout-summary">'+(last?'<span class="workout-kicker">LAST WORKOUT</span>':'')+'<span class="workout-name">'+esc(session.name)+'</span><span class="muted small">'+date(session.finished)+' · '+doneSets(session)+' sets</span><span class="workout-toggle" aria-hidden="true">⌄</span></summary><div class="workout-breakdown">'+exercises.map(e=>{
   const sets=e.sets.filter(t=>t.done),tonnage=sets.reduce((sum,t)=>sum+num(t.weight)*num(t.reps),0);
   return '<div class="list-item"><strong>'+esc(exerciseName(e))+'</strong>'+muscleTag(e)+'<ol class="result-sets">'+sets.map(t=>'<li>'+amount(t.weight)+' kg × '+amount(t.reps)+'</li>').join('')+'</ol><strong class="small result-volume">Volume: '+amount(tonnage)+' kg</strong></div>';
- }).join('')+'</div></details>';
+ }).join('')+(sessionIndex>=0?'<div class="actions">'+button('Delete workout','delete-workout','danger','data-session-index="'+sessionIndex+'"')+'</div>':'')+'</div></details>';
 }
-function history(){return db.sessions.length?db.sessions.slice().sort((a,b)=>new Date(b.finished)-new Date(a.finished)).map(s=>workoutCard(s)).join(''):'<div class="empty"><strong>No workouts yet</strong>Finish your first workout to see it here.</div>'}
+function history(){return db.sessions.length?db.sessions.map((session,index)=>({session,index})).sort((a,b)=>new Date(b.session.finished)-new Date(a.session.finished)).map(({session,index})=>workoutCard(session,false,index)).join(''):'<div class="empty"><strong>No workouts yet</strong>Finish your first workout to see it here.</div>'}
+function deleteWorkout(index){if(!Number.isInteger(index)||index<0||index>=db.sessions.length)return false;db.sessions.splice(index,1);save();return true}
+function confirmWorkoutDelete(){return new Promise(resolve=>{
+ const previous=document.activeElement,dialog=document.createElement('dialog');dialog.className='name-dialog';dialog.setAttribute('aria-labelledby','delete-workout-title');
+ dialog.innerHTML='<h2 id="delete-workout-title">Delete this workout?</h2><p class="muted small">Its sets will also be removed from your exercise history and progress charts. Your programs will be kept.</p><div class="actions"><button type="button" class="btn secondary" data-delete-cancel>Cancel</button><button type="button" class="btn danger" data-delete-confirm>Delete workout</button></div>';
+ const finish=answer=>{dialog.close();dialog.remove();previous?.focus();resolve(answer)};
+ dialog.querySelector('[data-delete-cancel]').addEventListener('click',()=>finish(false));dialog.querySelector('[data-delete-confirm]').addEventListener('click',()=>finish(true));dialog.addEventListener('cancel',e=>{e.preventDefault();finish(false)});document.body.append(dialog);dialog.showModal();dialog.querySelector('[data-delete-cancel]').focus();
+})}
 function progressSeries(sessions){
  const groups=new Map();
  for(const session of sessions){
@@ -241,6 +248,7 @@ if(a==='choose-split'){navigate('programs');return}
 if(['toggle-split','split-up','split-down'].includes(a)){e.preventDefault();if(changeSplit(id,a))render();return}
 if(a==='edit-weight'){const entry=weightEntries().find(e=>e.day===b.dataset.day);if(entry){$('body-weight-date').value=entry.day;$('body-weight-value').value=entry.weight;$('body-weight-value').focus();$('weight-form').scrollIntoView({behavior:'smooth',block:'center'})}return}
 if(a==='delete-weight'){db.bodyWeights=weightEntries().filter(e=>e.day!==b.dataset.day);save();render();toast('Weight record deleted');return}
+if(a==='delete-workout'){const index=Number(b.dataset.sessionIndex),session=db.sessions[index];if(session&&await confirmWorkoutDelete()&&db.sessions[index]===session&&deleteWorkout(index)){render();toast('Workout deleted')}return}
 if(a.startsWith('calendar-')){calendarAction(a,b);return}
 if(a==='start'){if(db.active){toast('Finish your current workout first');navigate('home')}else start(id)}
 if(a==='rest'){timerUntil=Date.now()+Number(b.dataset.seconds)*1000;tick()}

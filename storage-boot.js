@@ -1,7 +1,7 @@
 (async()=>{
 'use strict';
 const LEGACY='sanatory-gym-v1',tg=window.Telegram?.WebApp,content=document.getElementById('content');
-const launch=()=>{const script=document.createElement('script');script.src='./app.js?v=20261023-cloud-v1';script.onerror=()=>{content.textContent='Could not load the app. Please reopen it.'};document.head.append(script)};
+const launch=()=>{const script=document.createElement('script');script.src='./app.js?v=20261023-delete-workout';script.onerror=()=>{content.textContent='Could not load the app. Please reopen it.'};document.head.append(script)};
 const valid=text=>{try{const v=JSON.parse(text);return v&&Array.isArray(v.programs)&&Array.isArray(v.sessions)}catch{return false}};
 if(!tg?.initData){launch();return}
 tg.ready();tg.expand();
