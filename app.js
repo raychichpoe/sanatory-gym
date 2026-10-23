@@ -2,6 +2,7 @@
 (()=>{
 'use strict';
 const KEY='sanatory-gym-v1';
+const storage=window.GymStorage||localStorage;
 const exerciseCatalog=[
  ['incline','Incline Dumbbell Press','Chest',['Жим гантелей под углом']],
  ['pec-deck','Peck Deck','Chest',['Pec Deck']],
@@ -65,9 +66,9 @@ function muscleTag(e){
  return muscle?'<span class="muscle-tag muscle-'+(group?.[1]||'other')+'">'+esc(group?.[0]||muscle)+'</span>':'';
 }
 const fresh=()=>({programs:JSON.parse(JSON.stringify(templates)),sessions:[],active:null});
-function load(){try{const v=JSON.parse(localStorage.getItem(KEY));return v&&Array.isArray(v.programs)&&Array.isArray(v.sessions)?v:fresh()}catch{return fresh()}}
+function load(){try{const v=JSON.parse(storage.getItem(KEY));return v&&Array.isArray(v.programs)&&Array.isArray(v.sessions)?v:fresh()}catch{return fresh()}}
 let db=load(),tab='home',timerUntil=0;
-const $=id=>document.getElementById(id),uid=()=>crypto.randomUUID(),save=()=>localStorage.setItem(KEY,JSON.stringify(db));
+const $=id=>document.getElementById(id),uid=()=>crypto.randomUUID(),save=()=>storage.setItem(KEY,JSON.stringify(db));
 if(applyProgramPack(db))save();
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=s=>new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});

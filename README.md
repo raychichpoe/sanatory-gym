@@ -1,26 +1,21 @@
 # SANATORY Gym
 
-Трекер тренировок, подготовленный как Telegram Mini App. **v0.1 — прототип без сервера.**
+Workout tracker and Telegram Mini App: https://raychichpoe.github.io/sanatory-gym/
 
-## Что уже работает
-- Программы Push / Pull / Legs и собственные программы
-- Упражнения, подходы, веса, повторы и отметки о выполнении
-- Таймер отдыха 90/120 секунд
-- История завершённых тренировок и тоннаж
-- Страница прогресса с максимальными весами
-- Автосохранение в `localStorage` этого браузера
+## Account storage
 
-## Важно
-- Архив содержит **исходники**, а не запущенного Telegram-бота.
-- Данные не синхронизируются между устройствами, друзьями или Telegram-аккаунтами. У каждого браузера своё локальное хранилище.
-- Пока нет безопасного Telegram-логина, серверной базы, резервных копий или облачного хостинга. Это следующие этапы.
-- Не вводите реальные важные данные до подключения резервного копирования.
+Inside Telegram, programs, split, workouts, active session and body weight use Telegram CloudStorage. Telegram isolates storage per bot and user. The same Telegram account can restore its records on another supported device. No bot token is included in the website. The client user ID only namespaces the local recovery cache, never authorizes cloud access.
 
-## Загрузить на GitHub
-Откройте репозиторий `raychichpoe/sanatory-gym` → **Add file → Upload files**. Архив нужно сначала **распаковать**, затем загрузить четыре файла `index.html`, `styles.css`, `app.js`, `README.md` в корень репозитория. Нажмите **Commit changes**.
+Outside Telegram, the original browser localStorage is used. Browser records do not automatically sync with Telegram. On first launch with empty cloud storage, local records can be imported explicitly; the original copy is retained.
 
-## Открыть демо бесплатно через GitHub Pages
-После загрузки файлов: **Settings → Pages → Build and deployment → Deploy from a branch → main → /(root) → Save**. Через некоторое время GitHub покажет URL сайта `https://raychichpoe.github.io/sanatory-gym/` (проверяйте URL в Settings → Pages). Это только демонстрационный сайт, **не готовый Telegram-бот**.
+Wait for **Saved to your Telegram account** before closing or switching devices. Use one device at a time. Stale revisions are rejected, but CloudStorage has no compare-and-swap primitive: truly simultaneous writes cannot be transactionally merged. Unsynced changes remain in a local pending copy. Reopening offers backup download and upload retry when the cloud has not changed. Choosing the cloud copy archives pending data locally under the account recovery key.
 
-## Техническая информация
-Сайт работает без npm и сборки, на HTML/CSS/JS. Telegram JavaScript SDK подключён для отображения интерфейса внутри Mini App, но серверная проверка `initData` ещё не реализована. Для реальных аккаунтов надо валидировать подписанные Telegram-данные на сервере и разграничивать права доступа. Не сохраняйте ключи и токены в публичном репозитории.
+Snapshots use items of at most 3500 characters. The index is published after all items are confirmed; the previous snapshot is retained. A 700,000-character current-payload limit leaves room within Telegram's 1024-item quota for current, previous and in-flight copies. Errors are displayed rather than reported as successful sync. Unsupported Telegram versions must update before account editing.
+
+CloudStorage is user-controlled storage, not a trusted server database for payments or protected entitlements. Any future server API must validate Telegram initData server-side.
+
+## Verification
+
+No build or npm install required. Run `node test-history.cjs` and `node test-cloud.cjs`, plus `node --check` for app.js, cloud-store.js and storage-boot.js.
+
+Live-device check: import records on the phone, wait for saved status, close, open on desktop using the same Telegram account and compare history/split/weight. Another Telegram account should not see those records. Test offline save, reconnect and retry. Actual Telegram bridge behavior requires this live acceptance check.

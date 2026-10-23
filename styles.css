@@ -33,3 +33,5 @@
 .program-order{display:flex;align-items:center;gap:6px;flex-shrink:0}.program-order .btn{padding:8px;min-width:36px;min-height:44px}.program-order .program-chevron{margin-left:4px}.program-summary>span:first-child{min-width:0}
 
 .split-heading{margin-bottom:14px}.split-heading h2{margin:0}.program-order .ghost{font-size:12px;padding:8px;white-space:nowrap}
+
+.sync-status{color:#a1aeb3;margin:-12px 0 18px;line-height:1.5;overflow-wrap:anywhere}.sync-status.sync-error{color:#ffb2b7;padding:12px;background:#46282b;border-radius:12px}.sync-status .btn{padding:6px 12px;margin-top:6px}
