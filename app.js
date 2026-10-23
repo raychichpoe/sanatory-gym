@@ -2,15 +2,62 @@
 (()=>{
 'use strict';
 const KEY='sanatory-gym-v1';
-const templates=[
- {id:'push',name:'Push Day',exercises:[{id:'bench',name:'Жим штанги лёжа'},{id:'incline',name:'Жим гантелей под углом'},{id:'triceps',name:'Разгибание на блоке'}]},
- {id:'pull',name:'Pull Day',exercises:[{id:'pulldown',name:'Тяга верхнего блока'},{id:'row',name:'Горизонтальная тяга'},{id:'curl',name:'Подъём на бицепс'}]},
- {id:'legs',name:'Leg Day',exercises:[{id:'squat',name:'Приседания'},{id:'legpress',name:'Жим ногами'},{id:'calves',name:'Подъём на носки'}]}
+const exerciseCatalog=[
+ ['incline','Incline Dumbbell Press','Грудь',['Жим гантелей под углом']],
+ ['pec-deck','Peck Deck','Грудь',['Pec Deck']],
+ ['lateral-raise','Cable Lateral Raises','Плечи · средняя дельта',[]],
+ ['triceps','Triceps Pushdown','Трицепс',['Разгибание на блоке']],
+ ['overhead-rope','Triceps Overhead Rope','Трицепс',[]],
+ ['hammer-press','Hammer Press','Грудь',[]],
+ ['bench','Bench Press','Грудь',['Жим штанги лёжа']],
+ ['standing-curl','Biceps Stand Curl','Бицепс',[]],
+ ['pulldown','Lat Pulldown','Спина · широчайшие',['Тяга верхнего блока']],
+ ['legpress','Leg Press','Квадрицепсы',['Жим ногами']],
+ ['leg-curl','Leg Curls','Задняя поверхность бедра',[]],
+ ['row','Seated Cable Row','Спина',['Горизонтальная тяга']],
+ ['rear-delt','Rear Delt Cable','Плечи · задняя дельта',[]],
+ ['incline-curl','Incline Biceps Curl','Бицепс',[]],
+ ['hammer-curl','Cable Biceps Hammer Curl','Плечевая мышца',[]],
+ ['curl','Подъём на бицепс','Бицепс',[]],
+ ['squat','Приседания','Квадрицепсы',[]],
+ ['calves','Подъём на носки','Икры',[]]
 ];
+const normalizedName=value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
+const catalogEntry=e=>exerciseCatalog.find(c=>[c[1],...c[3]].some(n=>normalizedName(n)===normalizedName(e.name)));
+const makeExercise=(id,name)=>{const c=exerciseCatalog.find(c=>c[0]===id);return {id:c[0],name:name||c[1],muscle:c[2]}};
+const templates=[
+ {id:'push-1',name:'Push Day 1',exercises:['incline','pec-deck','lateral-raise','triceps','overhead-rope'].map(id=>makeExercise(id))},
+ {id:'push-2',name:'Push Day 2',exercises:['hammer-press','pec-deck','lateral-raise','triceps','overhead-rope'].map(id=>makeExercise(id))},
+ {id:'fullbody',name:'FullBody',exercises:['bench','pec-deck','lateral-raise','triceps','standing-curl','pulldown','legpress','leg-curl'].map(id=>makeExercise(id,id==='pec-deck'?'Pec Deck':undefined))},
+ {id:'pull',name:'Pull Day',exercises:['pulldown','row','rear-delt','incline-curl','hammer-curl'].map(id=>makeExercise(id))}
+];
+function applyProgramPack(data){
+ if(data.programPackVersion===1)return false;
+ // Only replace untouched starter plans. Keep every custom plan and historical ID.
+ const starters={push:['Жим штанги лёжа','Жим гантелей под углом','Разгибание на блоке'],pull:['Тяга верхнего блока','Горизонтальная тяга','Подъём на бицепс'],legs:['Приседания','Жим ногами','Подъём на носки']};
+ const starterNames={push:'Push Day',pull:'Pull Day',legs:'Leg Day'};
+ data.programs=data.programs.filter(p=>!(starterNames[p.id]===p.name&&JSON.stringify(p.exercises.map(e=>e.name))===JSON.stringify(starters[p.id])));
+ for(const template of templates){
+  const existing=data.programs.find(p=>normalizedName(p.name)===normalizedName(template.name));
+  if(existing){
+   for(const exercise of template.exercises){
+    const match=existing.exercises.find(e=>(catalogEntry(e)?.[0]||normalizedName(e.name))===(catalogEntry(exercise)?.[0]||normalizedName(exercise.name)));
+    if(match){if(!match.muscle)match.muscle=exercise.muscle}
+    else existing.exercises.push({...exercise});
+   }
+  }else{
+   const id=data.programs.some(p=>p.id===template.id)?template.id+'-pack-v1':template.id;
+   data.programs.push({...template,id,exercises:template.exercises.map(e=>({...e}))});
+  }
+ }
+ data.programPackVersion=1;return true;
+}
+function muscleTag(e){const muscle=e.muscle||catalogEntry(e)?.[2];return muscle?'<span class="muscle-tag">'+esc(muscle)+'</span>':''}
 const fresh=()=>({programs:JSON.parse(JSON.stringify(templates)),sessions:[],active:null});
 function load(){try{const v=JSON.parse(localStorage.getItem(KEY));return v&&Array.isArray(v.programs)&&Array.isArray(v.sessions)?v:fresh()}catch{return fresh()}}
 let db=load(),tab='home',timerUntil=0;
 const $=id=>document.getElementById(id),uid=()=>crypto.randomUUID(),save=()=>localStorage.setItem(KEY,JSON.stringify(db));
+if(applyProgramPack(db))save();
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=s=>new Date(s).toLocaleDateString('ru-RU',{day:'numeric',month:'short',year:'numeric'});
 const num=v=>Number.isFinite(+v)?Math.max(0,+v):0;
@@ -26,10 +73,10 @@ return '<section class="card hero"><span class="pill">YOUR WORKOUT SPACE</span><
 '<h2 class="section-title">Начать тренировку</h2>'+db.programs.map(p=>'<div class="card row"><div><strong>'+esc(p.name)+'</strong><p class="muted small">'+p.exercises.length+' упражнений</p></div>'+button('Начать','start','', 'data-id="'+esc(p.id)+'"')+'</div>').join('')+
 (last?'<div class="card"><span class="muted small">Последняя тренировка</span><h2>'+esc(last.name)+'</h2><p class="muted">'+date(last.finished)+' · '+doneSets(last)+' подходов · '+Math.round(volume(last))+' кг</p></div>':'')+
 '<p class="notice">Прототип: данные пока сохраняются только на этом устройстве. Облачная синхронизация и персональные Telegram-аккаунты будут в следующей версии.</p>'}
-function start(id){const p=db.programs.find(x=>x.id===id);if(!p)return;db.active={id:uid(),programId:p.id,name:p.name,started:new Date().toISOString(),exercises:p.exercises.map(e=>({id:e.id,name:e.name,sets:[{id:uid(),weight:0,reps:10,done:false}]}))};save();navigate('home')}
+function start(id){const p=db.programs.find(x=>x.id===id);if(!p)return;db.active={id:uid(),programId:p.id,name:p.name,started:new Date().toISOString(),exercises:p.exercises.map(e=>({id:e.id,name:e.name,muscle:e.muscle||catalogEntry(e)?.[2],sets:[{id:uid(),weight:0,reps:10,done:false}]}))};save();navigate('home')}
 function activeView(){const s=db.active;return '<div class="timer"><div class="row"><div><span class="small muted">ОТДЫХ</span><br><strong id="timer-text">00:00</strong></div><div class="actions" style="margin:0">'+button('1:30','rest','ghost','data-seconds="90"')+button('2:00','rest','ghost','data-seconds="120"')+button('×','stop-rest','secondary')+'</div></div></div>'+
 '<div class="card"><span class="pill">ТРЕНИРОВКА ИДЁТ</span><h2 style="margin-top:10px">'+esc(s.name)+'</h2><p class="muted small">'+doneSets(s)+' выполненных подходов · '+Math.round(volume(s))+' кг объёма</p>'+
-s.exercises.map((e,i)=>'<div class="exercise"><h3>'+esc(e.name)+'</h3><div class="set-row small muted"><span>#</span><span>Вес, кг</span><span>Повторы</span><span>Готово</span></div>'+
+s.exercises.map((e,i)=>'<div class="exercise"><h3>'+esc(e.name)+'</h3>'+muscleTag(e)+'<div class="set-row small muted"><span>#</span><span>Вес, кг</span><span>Повторы</span><span>Готово</span></div>'+
 e.sets.map((t,j)=>'<div class="set-row"><span class="muted">'+(j+1)+'</span><input aria-label="Вес" class="input" type="number" inputmode="decimal" min="0" step="0.5" value="'+t.weight+'" data-field="weight" data-ex="'+i+'" data-set="'+j+'"><input aria-label="Повторы" class="input" type="number" inputmode="numeric" min="0" step="1" value="'+t.reps+'" data-field="reps" data-ex="'+i+'" data-set="'+j+'"><button aria-label="Отметить подход" data-action="toggle-set" data-ex="'+i+'" data-set="'+j+'" class="set-done '+(t.done?'':'off')+'">✓</button></div>').join('')+
 '<div class="actions">'+button('+ Подход','add-set','ghost','data-ex="'+i+'"')+button('Удалить','remove-ex','secondary','data-ex="'+i+'"')+'</div></div>').join('')+
 '<div class="actions">'+button('+ Упражнение','add-ex','secondary')+button('Завершить тренировку','finish','')+button('Отменить','cancel','danger')+'</div></div>'}
@@ -42,7 +89,9 @@ function exerciseDays(exercise){
   const key=dayKey(session.finished);if(!key)continue;
   for(const recorded of session.exercises||[]){
    // Stable IDs survive renaming; name fallback supports older entries without IDs.
-   if(recorded.id&&exercise.id?recorded.id!==exercise.id:recorded.name!==exercise.name)continue;
+   const sameId=recorded.id&&exercise.id&&recorded.id===exercise.id;
+   const recordedKey=catalogEntry(recorded)?.[0]||normalizedName(recorded.name),exerciseKey=catalogEntry(exercise)?.[0]||normalizedName(exercise.name);
+   if(!sameId&&recordedKey!==exerciseKey)continue;
    const sets=(recorded.sets||[]).filter(set=>set.done);if(!sets.length)continue;
    if(!days.has(key))days.set(key,[]);days.get(key).push(...sets);
   }
@@ -65,7 +114,7 @@ function calendarView(days,attrs){
 }
 function programs(){return '<p class="muted small">Последние выполненные подходы у каждого упражнения. Нажми на календарь, чтобы выбрать другой день.</p>'+db.programs.map((p,pi)=>'<div class="card"><div class="row"><h2>'+esc(p.name)+'</h2>'+button('Удалить','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map((e,ei)=>{
  const days=exerciseDays(e),open=calendarState?.pi===pi&&calendarState?.ei===ei,attrs='data-pi="'+pi+'" data-ei="'+ei+'"';
- return '<div class="list-item"><div class="row"><strong class="program-exercise-name">'+esc(e.name)+'</strong><div class="exercise-tools">'+button('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>','calendar-toggle','ghost calendar-toggle',attrs+' aria-label="Календарь: '+esc(e.name)+'" aria-expanded="'+open+'"')+button('×','delete-exercise','secondary','data-id="'+esc(p.id)+'" data-exid="'+esc(e.id)+'" aria-label="Удалить упражнение"')+'</div></div><p class="tiny muted result-label">'+(open?'Результат выбранной даты':'Последний результат')+'</p>'+resultView(open?days.find(d=>d[0]===calendarState.day):days[0])+(open?calendarView(days,attrs):'')+'</div>';
+ return '<div class="list-item"><div class="row"><div class="program-exercise-name"><strong>'+esc(e.name)+'</strong>'+muscleTag(e)+'</div><div class="exercise-tools">'+button('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>','calendar-toggle','ghost calendar-toggle',attrs+' aria-label="Календарь: '+esc(e.name)+'" aria-expanded="'+open+'"')+button('×','delete-exercise','secondary','data-id="'+esc(p.id)+'" data-exid="'+esc(e.id)+'" aria-label="Удалить упражнение"')+'</div></div><p class="tiny muted result-label">'+(open?'Результат выбранной даты':'Последний результат')+'</p>'+resultView(open?days.find(d=>d[0]===calendarState.day):days[0])+(open?calendarView(days,attrs):'')+'</div>';
  }).join('')+'<div class="actions">'+button('+ Упражнение','program-ex','ghost','data-id="'+esc(p.id)+'"')+button('Начать','start','','data-id="'+esc(p.id)+'"')+'</div></div>').join('')+button('+ Новая программа','new-program','full')}
 function calendarAction(action,b){
  const pi=Number(b.dataset.pi),ei=Number(b.dataset.ei);

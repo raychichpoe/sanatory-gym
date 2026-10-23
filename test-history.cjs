@@ -3,7 +3,7 @@ const vm=require('node:vm');
 const assert=require('node:assert/strict');
 const set=(weight,reps,done=true)=>({weight,reps,done});
 const session=(finished,sets,id='bench')=>({finished,exercises:[{id,name:'Жим',sets}]});
-const data={programs:[{id:'push',name:'Push',exercises:[{id:'bench',name:'Жим переименован'},{id:'empty',name:'Без записей'}]}],sessions:[
+const data={programPackVersion:1,programs:[{id:'push',name:'Push',exercises:[{id:'bench',name:'Жим переименован'},{id:'empty',name:'Без записей'}]}],sessions:[
  session('2026-10-22T12:00:00',[set(50,10),set(80,5,false)]),
  session('2026-10-20T12:00:00',[set(40,10)]),
  session('2026-10-22T18:00:00',[set(55,8)]),
@@ -13,7 +13,7 @@ const stored=JSON.stringify(data),listeners={},elements={};let writes=0;
 const context={console,Date,Map,Set,Number,String,JSON,Math,crypto:require('node:crypto').webcrypto,navigator:{},window:{},setInterval(){},clearTimeout(){},setTimeout(){},localStorage:{getItem:()=>stored,setItem(){writes++}},document:{getElementById(id){return elements[id]??={textContent:'',innerHTML:'',style:{}}},querySelectorAll:()=>[],querySelector:()=>({focus(){}}),addEventListener(type,fn){listeners[type]=fn}}};
 vm.createContext(context);
 let source=readFileSync(__dirname+'/app.js','utf8').replace(/\r\n/g,'\n');
-source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultView,programs,calendarAction,getState:()=>calendarState};render();\n})();');
+source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultView,programs,calendarAction,applyProgramPack,muscleTag,templates,getState:()=>calendarState};render();\n})();');
 vm.runInContext(source,context);
 const t=context.test,days=t.exerciseDays(data.programs[0].exercises[0]);
 assert.equal(days.length,2);assert.equal(days[0][0],'2026-10-22');assert.equal(days[0][1].length,2);
@@ -54,3 +54,16 @@ console.log('PASS: latest date, completed sets, same-day aggregation, renamed ex
  console.log('PASS: create program from empty list, trim/validate name, add exercise, cancel and Escape do not save');
 })().catch(error=>{console.error(error);process.exitCode=1});
 
+
+const pack={programs:[],sessions:data.sessions,active:{id:'keep'}};
+const historyBefore=JSON.stringify(pack.sessions);
+assert.equal(t.applyProgramPack(pack),true);
+assert.equal(pack.programs.length,4);
+assert.equal(pack.programs.map(p=>p.exercises.length).join(','),'5,5,8,5');
+assert.equal(pack.programs.every(p=>p.exercises.every(e=>e.muscle)),true);
+assert.equal(t.applyProgramPack(pack),false);
+pack.programs.pop();assert.equal(t.applyProgramPack(pack),false);assert.equal(pack.programs.length,3);
+assert.equal(JSON.stringify(pack.sessions),historyBefore);assert.equal(pack.active.id,'keep');
+const custom={programs:[{id:'custom',name:'Push Day 1',exercises:[{id:'old-id',name:'Pec Deck'},{id:'extra',name:'Custom exercise'}]}],sessions:[]};
+t.applyProgramPack(custom);assert.equal(custom.programs.length,4);assert.equal(custom.programs[0].exercises.filter(e=>/Pe?ck? Deck/.test(e.name)).length,1);assert.equal(custom.programs[0].exercises[0].id,'old-id');assert.equal(custom.programs[0].exercises[0].muscle,'Грудь');assert.equal(custom.programs[0].exercises.some(e=>e.id==='extra'),true);
+console.log('PASS: four programs, 23 tagged exercises, aliases, no duplicate plans, preserve custom IDs/history/active session, one-time migration');
