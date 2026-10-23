@@ -77,8 +77,9 @@ const volume=s=>s.exercises.reduce((a,e)=>a+e.sets.filter(t=>t.done).reduce((b,t
 const doneSets=s=>s.exercises.reduce((a,e)=>a+e.sets.filter(t=>t.done).length,0);
 function toast(message){const el=$('toast');el.textContent=message;el.style.display='block';clearTimeout(toast.id);toast.id=setTimeout(()=>el.style.display='none',2200)}
 function button(label,action,cls='secondary',attrs=''){return '<button type="button" class="btn '+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>'}
+let historyEdit=null;
 const expandedPrograms=new Set();
-function navigate(next){expandedPrograms.clear();calendarState=null;tab=next;render()}
+function navigate(next){historyEdit=null;expandedPrograms.clear();calendarState=null;tab=next;render()}
 function render(){const titles={home:'Workouts',programs:'My programs',history:'History',progress:'Progress',weight:'Weight'};$('page-title').textContent=titles[tab];document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('content').innerHTML=tab==='home'?home():tab==='programs'?programs():tab==='history'?history():tab==='weight'?weightView():progress();tick()}
 function home(){if(db.active)return activeView();const last=db.sessions.slice().sort((a,b)=>new Date(b.finished)-new Date(a.finished))[0];
 return '<section class="card hero mascot-hero"><h2 lang="ru">Не базарим,<br>а тренируемся</h2><img class="workout-mascot" src="./assets/workout-mascot-v2.png" alt="" width="1122" height="1402" fetchpriority="high"></section>'+
@@ -87,8 +88,8 @@ splitHome()+
 function start(id){const p=db.programs.find(x=>x.id===id);if(!p)return;db.active={id:uid(),programId:p.id,name:p.name,started:new Date().toISOString(),exercises:p.exercises.map(e=>({id:e.id,name:e.name,muscle:e.muscle||catalogEntry(e)?.[2],sets:[{id:uid(),weight:0,reps:10,done:false}]}))};save();navigate('home')}
 function activeView(){const s=db.active;return '<div class="timer"><div class="row"><div><span class="small muted">REST</span><br><strong id="timer-text">00:00</strong></div><div class="actions" style="margin:0">'+button('1:30','rest','ghost','data-seconds="90"')+button('2:00','rest','ghost','data-seconds="120"')+button('3:00','rest','ghost','data-seconds="180"')+button('×','stop-rest','secondary')+'</div></div></div>'+
 '<div class="card"><span class="pill">WORKOUT IN PROGRESS</span><h2 style="margin-top:10px">'+esc(s.name)+'</h2><p class="muted small">'+doneSets(s)+' completed sets · '+Math.round(volume(s))+' kg volume</p>'+
-s.exercises.map((e,i)=>'<div class="exercise"><h3>'+esc(exerciseName(e))+'</h3>'+muscleTag(e)+'<div class="set-row small muted"><span>#</span><span>Weight, kg</span><span>Reps</span><span>Done</span></div>'+
-e.sets.map((t,j)=>'<div class="set-row"><span class="muted">'+(j+1)+'</span><input aria-label="Weight" class="input" type="number" inputmode="decimal" min="0" step="0.5" value="'+t.weight+'" data-field="weight" data-ex="'+i+'" data-set="'+j+'"><input aria-label="Reps" class="input" type="number" inputmode="numeric" min="0" step="1" value="'+t.reps+'" data-field="reps" data-ex="'+i+'" data-set="'+j+'"><button aria-label="Mark set complete" data-action="toggle-set" data-ex="'+i+'" data-set="'+j+'" class="set-done '+(t.done?'':'off')+'">✓</button></div>').join('')+
+s.exercises.map((e,i)=>'<div class="exercise"><h3>'+esc(exerciseName(e))+'</h3>'+muscleTag(e)+'<div class="set-row editable-set-row small muted"><span>#</span><span>Weight, kg</span><span>Reps</span><span>Done</span><span></span></div>'+
+e.sets.map((t,j)=>'<div class="set-row editable-set-row"><span class="muted">'+(j+1)+'</span><input aria-label="Weight" class="input" type="number" inputmode="decimal" min="0" step="0.5" value="'+t.weight+'" data-field="weight" data-ex="'+i+'" data-set="'+j+'"><input aria-label="Reps" class="input" type="number" inputmode="numeric" min="0" step="1" value="'+t.reps+'" data-field="reps" data-ex="'+i+'" data-set="'+j+'"><button aria-label="Mark set complete" data-action="toggle-set" data-ex="'+i+'" data-set="'+j+'" class="set-done '+(t.done?'':'off')+'">✓</button>'+button('×','remove-set','secondary set-remove','data-ex="'+i+'" data-set="'+j+'" aria-label="Delete set '+(j+1)+'"')+'</div>').join('')+
 '<div class="actions">'+button('+ Set','add-set','ghost','data-ex="'+i+'"')+button('Delete','remove-ex','secondary','data-ex="'+i+'"')+'</div></div>').join('')+
 '<div class="actions">'+button('+ Exercise','add-ex','secondary')+button('Finish workout','finish','')+button('Cancel','cancel','danger')+'</div></div>'}
 let calendarState=null;
@@ -162,9 +163,24 @@ function workoutCard(session,last=false,sessionIndex=-1){
  return '<details class="card workout-details"><summary class="workout-summary">'+(last?'<span class="workout-kicker">LAST WORKOUT</span>':'')+'<span class="workout-name">'+esc(session.name)+'</span><span class="muted small">'+date(session.finished)+' · '+doneSets(session)+' sets</span><span class="workout-toggle" aria-hidden="true">⌄</span></summary><div class="workout-breakdown">'+exercises.map(e=>{
   const sets=e.sets.filter(t=>t.done),tonnage=sets.reduce((sum,t)=>sum+num(t.weight)*num(t.reps),0);
   return '<div class="list-item"><strong>'+esc(exerciseName(e))+'</strong>'+muscleTag(e)+'<ol class="result-sets">'+sets.map(t=>'<li>'+amount(t.weight)+' kg × '+amount(t.reps)+'</li>').join('')+'</ol><strong class="small result-volume">Volume: '+amount(tonnage)+' kg</strong></div>';
- }).join('')+(sessionIndex>=0?'<div class="actions">'+button('Delete workout','delete-workout','danger','data-session-index="'+sessionIndex+'"')+'</div>':'')+'</div></details>';
+ }).join('')+(sessionIndex>=0?'<div class="actions">'+button('Edit workout','edit-workout','secondary','data-session-index="'+sessionIndex+'"')+button('Delete workout','delete-workout','danger','data-session-index="'+sessionIndex+'"')+'</div>':'')+'</div></details>';
 }
-function history(){return db.sessions.length?db.sessions.map((session,index)=>({session,index})).sort((a,b)=>new Date(b.session.finished)-new Date(a.session.finished)).map(({session,index})=>workoutCard(session,false,index)).join(''):'<div class="empty"><strong>No workouts yet</strong>Finish your first workout to see it here.</div>'}
+function history(){if(historyEdit)return historyEditor();return db.sessions.length?db.sessions.map((session,index)=>({session,index})).sort((a,b)=>new Date(b.session.finished)-new Date(a.session.finished)).map(({session,index})=>workoutCard(session,false,index)).join(''):'<div class="empty"><strong>No workouts yet</strong>Finish your first workout to see it here.</div>'}
+function beginHistoryEdit(index){
+ const session=db.sessions[index];if(!session)return false;
+ historyEdit={index,original:session,draft:JSON.parse(JSON.stringify(session))};return true;
+}
+function historyEditor(){
+ const session=historyEdit.draft;
+ const controls=()=>'<div class="actions">'+button('Save changes','save-history','')+button('Cancel','cancel-history','secondary')+'</div>';
+ return '<div class="card"><span class="pill">EDIT WORKOUT</span><h2 style="margin-top:12px">'+esc(session.name)+'</h2><p class="muted small">'+date(session.finished)+' · Changes are saved only when you press Save changes.</p>'+controls()+session.exercises.map((exercise,i)=>'<div class="exercise"><h3>'+esc(exerciseName(exercise))+'</h3>'+muscleTag(exercise)+'<div class="set-row editable-set-row small muted"><span>#</span><span>Weight, kg</span><span>Reps</span><span>Done</span><span></span></div>'+exercise.sets.map((set,j)=>'<div class="set-row editable-set-row"><span class="muted">'+(j+1)+'</span><input class="input" aria-label="Set '+(j+1)+' weight" type="number" min="0" step="0.5" inputmode="decimal" value="'+num(set.weight)+'" data-history-field="weight" data-ex="'+i+'" data-set="'+j+'"><input class="input" aria-label="Set '+(j+1)+' reps" type="number" min="0" step="1" inputmode="numeric" value="'+num(set.reps)+'" data-history-field="reps" data-ex="'+i+'" data-set="'+j+'"><button type="button" class="set-done '+(set.done?'':'off')+'" data-action="history-toggle" data-ex="'+i+'" data-set="'+j+'" aria-label="Mark set complete" aria-pressed="'+!!set.done+'">✓</button>'+button('×','history-remove','secondary set-remove','data-ex="'+i+'" data-set="'+j+'" aria-label="Delete set '+(j+1)+'"')+'</div>').join('')+button('+ Set','history-add','ghost','data-ex="'+i+'"')+'</div>').join('')+controls()+'</div>';
+}
+function saveHistoryEdit(){
+ if(!historyEdit||db.sessions[historyEdit.index]!==historyEdit.original)return false;
+ if(!doneSets(historyEdit.draft)){toast('Keep at least one completed set, or delete the workout');return false}
+ db.sessions[historyEdit.index]=historyEdit.draft;historyEdit=null;save();return true;
+}
+function removeActiveSet(ex,set){const sets=db.active?.exercises[ex]?.sets;if(!sets||!Number.isInteger(set)||set<0||set>=sets.length)return false;sets.splice(set,1);save();return true}
 function deleteWorkout(index){if(!Number.isInteger(index)||index<0||index>=db.sessions.length)return false;db.sessions.splice(index,1);save();return true}
 function confirmWorkoutDelete(){return new Promise(resolve=>{
  const previous=document.activeElement,dialog=document.createElement('dialog');dialog.className='name-dialog';dialog.setAttribute('aria-labelledby','delete-workout-title');
@@ -253,6 +269,11 @@ if(a.startsWith('calendar-')){calendarAction(a,b);return}
 if(a==='start'){if(db.active){toast('Finish your current workout first');navigate('home')}else start(id)}
 if(a==='rest'){timerUntil=Date.now()+Number(b.dataset.seconds)*1000;tick()}
 if(a==='stop-rest'){timerUntil=0;tick()}
+if(a==='remove-set'){if(removeActiveSet(ex,set))render();return}
+if(a==='edit-workout'){if(beginHistoryEdit(Number(b.dataset.sessionIndex)))render();return}
+if(a==='cancel-history'){historyEdit=null;render();return}
+if(a==='save-history'){if(saveHistoryEdit()){render();toast('Workout updated')}return}
+if(a.startsWith('history-')&&historyEdit){const sets=historyEdit.draft.exercises[ex]?.sets;if(!sets)return;if(a==='history-add'){const prev=sets.at(-1);sets.push({id:uid(),weight:prev?.weight||0,reps:prev?.reps||10,done:true})}if(a==='history-remove'&&sets[set])sets.splice(set,1);if(a==='history-toggle'&&sets[set])sets[set].done=!sets[set].done;render();return}
 if(a==='toggle-set'){let t=db.active.exercises[ex].sets[set];t.done=!t.done;save();render()}
 if(a==='add-set'){const sets=db.active.exercises[ex].sets,prev=sets.at(-1);sets.push({id:uid(),weight:prev?.weight||0,reps:prev?.reps||10,done:false});save();render()}
 if(a==='remove-ex'&&confirm('Remove this exercise from the current workout?')){db.active.exercises.splice(ex,1);save();render()}
@@ -265,6 +286,7 @@ if(a==='program-ex'){const n=await ask('Add exercise'),p=db.programs.find(p=>p.i
 if(a==='delete-exercise'&&confirm('Remove this exercise?')){calendarState=null;const p=db.programs.find(p=>p.id===id);p.exercises=p.exercises.filter(e=>e.id!==b.dataset.exid);save();render()}
 });
 document.addEventListener('toggle',event=>{const el=event.target;if(!el.matches?.('.program-details'))return;const id=el.dataset.programId;if(el.open)expandedPrograms.add(id);else expandedPrograms.delete(id)},true);
+document.addEventListener('change',e=>{const input=e.target.closest('[data-history-field]');if(!input||!historyEdit)return;const set=historyEdit.draft.exercises[Number(input.dataset.ex)]?.sets[Number(input.dataset.set)];if(set&&['weight','reps'].includes(input.dataset.historyField))set[input.dataset.historyField]=num(input.value)});
 document.addEventListener('change',e=>{const input=e.target.closest('[data-field]');if(!input||!db.active)return;const t=db.active.exercises[Number(input.dataset.ex)]?.sets[Number(input.dataset.set)];if(!t)return;t[input.dataset.field]=num(input.value);save()});
 function tick(){const el=$('timer-text');if(!el)return;const remaining=Math.max(0,Math.ceil((timerUntil-Date.now())/1000));el.textContent=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');if(!remaining&&timerUntil){timerUntil=0;toast('Rest time is over');if(navigator.vibrate)navigator.vibrate(200)}}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&calendarState){const {pi,ei}=calendarState;calendarAction('calendar-close',{dataset:{pi,ei}})}});
