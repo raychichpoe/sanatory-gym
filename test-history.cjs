@@ -27,4 +27,30 @@ t.calendarAction('calendar-close',b);assert.equal(t.getState(),null);assert.matc
 t.calendarAction('calendar-toggle',b);listeners.keydown({key:'Escape'});assert.equal(t.getState(),null);
 assert.equal(writes,0);assert.equal(JSON.stringify(data),stored);
 console.log('PASS: latest date, completed sets, same-day aggregation, renamed exercise ID, empty history, calendar selection/navigation/close/Escape, no storage writes');
+// Exercise the actual click/submit handlers with all programs removed.
+(async()=>{
+ let dialog;
+ context.document.createElement=()=>{
+  const handlers={},input={value:'',focus(){}},error={textContent:''};
+  dialog={className:'',setAttribute(){},innerHTML:'',showModal(){this.open=true},close(){this.open=false},remove(){},
+   addEventListener(type,fn){handlers[type]=fn},
+   querySelector(selector){return selector==='input'?input:selector==='.name-error'?error:{addEventListener(type,fn){handlers[selector+':'+type]=fn}}},handlers,input,error};return dialog;
+ };
+ context.document.body={append(){}};
+ // Reload with an empty program list, preserving recorded sessions.
+ context.localStorage.getItem=()=>JSON.stringify({...data,programs:[]});
+ vm.runInContext(readFileSync(__dirname+'/app.js','utf8'),context);
+ await listeners.click({target:{closest(selector){return selector==='[data-tab]'?{dataset:{tab:'programs'}}:null}}});
+ const click=(action,id)=>listeners.click({target:{closest(selector){return selector==='[data-action]'?{dataset:{action,id}}:null}}});
+ let pending=click('new-program');assert.equal(dialog.open,true);
+ dialog.input.value='   ';dialog.handlers['form:submit']({preventDefault(){}});assert.equal(dialog.error.textContent,'Введи название');
+ dialog.input.value='  Моя программа  ';dialog.handlers['form:submit']({preventDefault(){}});await pending;
+ assert.match(elements.content.innerHTML,/Моя программа/);
+ const programId=elements.content.innerHTML.match(/data-action="program-ex" data-id="([^"]+)"/)[1];
+ pending=click('program-ex',programId);dialog.input.value='Приседания';dialog.handlers['form:submit']({preventDefault(){}});await pending;
+ assert.match(elements.content.innerHTML,/Приседания/);
+ const before=writes;pending=click('new-program');dialog.handlers['[data-dismiss]:click']();await pending;assert.equal(writes,before);
+ pending=click('new-program');dialog.handlers.cancel({preventDefault(){}});await pending;assert.equal(writes,before);
+ console.log('PASS: create program from empty list, trim/validate name, add exercise, cancel and Escape do not save');
+})().catch(error=>{console.error(error);process.exitCode=1});
 

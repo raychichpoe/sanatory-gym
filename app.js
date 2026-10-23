@@ -84,8 +84,22 @@ function calendarAction(action,b){
 function history(){return db.sessions.length?db.sessions.slice().reverse().map(s=>'<div class="card"><div class="row"><h2>'+esc(s.name)+'</h2><span class="muted small">'+date(s.finished)+'</span></div><p class="muted small">'+doneSets(s)+' подходов · '+Math.round(volume(s))+' кг</p>'+s.exercises.map(e=>'<div class="list-item"><strong>'+esc(e.name)+'</strong><div class="muted small">'+e.sets.filter(t=>t.done).map(t=>esc(t.weight)+' кг × '+esc(t.reps)).join(' · ')+'</div></div>').join('')+'</div>').join(''):'<div class="empty"><strong>История пока пуста</strong>Заверши первую тренировку, и она появится здесь.</div>'}
 function progress(){if(!db.sessions.length)return '<div class="empty"><strong>Прогресс начинается с первой тренировки</strong>Заверши тренировку, чтобы увидеть результаты.</div>';const names=[...new Set(db.sessions.flatMap(s=>s.exercises.map(e=>e.name)))];return '<div class="card"><h2>Общий прогресс</h2><div class="row"><div class="metric"><strong>'+db.sessions.length+'</strong><small>Тренировок</small></div><div class="metric"><strong>'+Math.round(db.sessions.reduce((a,s)=>a+volume(s),0))+'</strong><small>Всего кг</small></div></div></div><h2 class="section-title">Максимальные рабочие веса</h2>'+names.map(n=>{const points=db.sessions.flatMap(s=>s.exercises.filter(e=>e.name===n).flatMap(e=>e.sets.filter(t=>t.done).map(t=>num(t.weight))));const max=Math.max(...points,0);return '<div class="card"><div class="row"><strong>'+esc(n)+'</strong><strong>'+max+' кг</strong></div><div class="bar"><span style="width:'+(max?100:0)+'%"></span></div><p class="muted tiny">'+points.length+' записанных подходов</p></div>'}).join('')}
 function finish(){if(!db.active)return;if(!doneSets(db.active)){toast('Отметь хотя бы один выполненный подход');return}db.active.finished=new Date().toISOString();db.sessions.push(db.active);db.active=null;save();timerUntil=0;navigate('history');toast('Тренировка сохранена')}
-function ask(text){const value=prompt(text);return value&&value.trim()?value.trim().slice(0,80):null}
-document.addEventListener('click',e=>{const navButton=e.target.closest('[data-tab]');if(navButton){navigate(navButton.dataset.tab);return}const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,id=b.dataset.id,ex=Number(b.dataset.ex),set=Number(b.dataset.set);
+function ask(text){return new Promise(resolve=>{
+ const previous=document.activeElement,dialog=document.createElement('dialog');
+ dialog.className='name-dialog';
+ dialog.setAttribute('aria-labelledby','name-dialog-title');
+ dialog.innerHTML='<form><h2 id="name-dialog-title">'+esc(text)+'</h2><label for="name-dialog-input" class="small muted">Название</label><input id="name-dialog-input" class="input" name="name" maxlength="80" required autocomplete="off" placeholder="Введи название" autofocus><p class="name-error small" role="status"></p><div class="actions"><button type="button" class="btn secondary" data-dismiss>Отмена</button><button type="submit" class="btn">Добавить</button></div></form>';
+ const finish=value=>{dialog.close();dialog.remove();previous?.focus();resolve(value)};
+ dialog.querySelector('form').addEventListener('submit',event=>{
+  event.preventDefault();const input=dialog.querySelector('input'),value=input.value.trim();
+  if(!value){dialog.querySelector('.name-error').textContent='Введи название';input.focus();return}
+  finish(value.slice(0,80));
+ });
+ dialog.querySelector('[data-dismiss]').addEventListener('click',()=>finish(null));
+ dialog.addEventListener('cancel',event=>{event.preventDefault();finish(null)});
+ document.body.append(dialog);dialog.showModal();
+})}
+document.addEventListener('click',async e=>{const navButton=e.target.closest('[data-tab]');if(navButton){navigate(navButton.dataset.tab);return}const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,id=b.dataset.id,ex=Number(b.dataset.ex),set=Number(b.dataset.set);
 if(a.startsWith('calendar-')){calendarAction(a,b);return}
 if(a==='start'){if(db.active){toast('Сначала заверши текущую тренировку');navigate('home')}else start(id)}
 if(a==='rest'){timerUntil=Date.now()+Number(b.dataset.seconds)*1000;tick()}
@@ -93,12 +107,12 @@ if(a==='stop-rest'){timerUntil=0;tick()}
 if(a==='toggle-set'){let t=db.active.exercises[ex].sets[set];t.done=!t.done;save();render()}
 if(a==='add-set'){const sets=db.active.exercises[ex].sets,prev=sets.at(-1);sets.push({id:uid(),weight:prev?.weight||0,reps:prev?.reps||10,done:false});save();render()}
 if(a==='remove-ex'&&confirm('Удалить упражнение из текущей тренировки?')){db.active.exercises.splice(ex,1);save();render()}
-if(a==='add-ex'){const n=ask('Название упражнения');if(n){db.active.exercises.push({id:uid(),name:n,sets:[{id:uid(),weight:0,reps:10,done:false}]});save();render()}}
+if(a==='add-ex'){const n=await ask('Название упражнения');if(n&&db.active){db.active.exercises.push({id:uid(),name:n,sets:[{id:uid(),weight:0,reps:10,done:false}]});save();render()}}
 if(a==='finish')finish();
 if(a==='cancel'&&confirm('Отменить тренировку? Несохранённые подходы будут потеряны.')){db.active=null;save();timerUntil=0;render()}
-if(a==='new-program'){const n=ask('Название новой программы');if(n){db.programs.push({id:uid(),name:n,exercises:[]});save();render()}}
+if(a==='new-program'){const n=await ask('Название новой программы');if(n){db.programs.push({id:uid(),name:n,exercises:[]});save();render()}}
 if(a==='delete-program'&&confirm('Удалить программу? История тренировок сохранится.')){calendarState=null;db.programs=db.programs.filter(p=>p.id!==id);save();render()}
-if(a==='program-ex'){const n=ask('Название упражнения');if(n){db.programs.find(p=>p.id===id).exercises.push({id:uid(),name:n});save();render()}}
+if(a==='program-ex'){const n=await ask('Название упражнения'),p=db.programs.find(p=>p.id===id);if(n&&p){p.exercises.push({id:uid(),name:n});save();render()}}
 if(a==='delete-exercise'&&confirm('Удалить упражнение?')){calendarState=null;const p=db.programs.find(p=>p.id===id);p.exercises=p.exercises.filter(e=>e.id!==b.dataset.exid);save();render()}
 });
 document.addEventListener('change',e=>{const input=e.target.closest('[data-field]');if(!input||!db.active)return;const t=db.active.exercises[Number(input.dataset.ex)]?.sets[Number(input.dataset.set)];if(!t)return;t[input.dataset.field]=num(input.value);save()});
