@@ -18,7 +18,7 @@ const volume=s=>s.exercises.reduce((a,e)=>a+e.sets.filter(t=>t.done).reduce((b,t
 const doneSets=s=>s.exercises.reduce((a,e)=>a+e.sets.filter(t=>t.done).length,0);
 function toast(message){const el=$('toast');el.textContent=message;el.style.display='block';clearTimeout(toast.id);toast.id=setTimeout(()=>el.style.display='none',2200)}
 function button(label,action,cls='secondary',attrs=''){return '<button type="button" class="btn '+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>'}
-function navigate(next){tab=next;render()}
+function navigate(next){calendarState=null;tab=next;render()}
 function render(){const titles={home:'Тренировки',programs:'Мои программы',history:'История',progress:'Прогресс'};$('page-title').textContent=titles[tab];document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('content').innerHTML=tab==='home'?home():tab==='programs'?programs():tab==='history'?history():progress();tick()}
 function home(){if(db.active)return activeView();const last=db.sessions.at(-1);
 return '<section class="card hero"><span class="pill">YOUR WORKOUT SPACE</span><h2>Становись сильнее.<br>Каждую тренировку.</h2><p class="muted">Записывай подходы, отслеживай веса и побеждай свои рекорды.</p></section>'+
@@ -33,12 +33,60 @@ s.exercises.map((e,i)=>'<div class="exercise"><h3>'+esc(e.name)+'</h3><div class
 e.sets.map((t,j)=>'<div class="set-row"><span class="muted">'+(j+1)+'</span><input aria-label="Вес" class="input" type="number" inputmode="decimal" min="0" step="0.5" value="'+t.weight+'" data-field="weight" data-ex="'+i+'" data-set="'+j+'"><input aria-label="Повторы" class="input" type="number" inputmode="numeric" min="0" step="1" value="'+t.reps+'" data-field="reps" data-ex="'+i+'" data-set="'+j+'"><button aria-label="Отметить подход" data-action="toggle-set" data-ex="'+i+'" data-set="'+j+'" class="set-done '+(t.done?'':'off')+'">✓</button></div>').join('')+
 '<div class="actions">'+button('+ Подход','add-set','ghost','data-ex="'+i+'"')+button('Удалить','remove-ex','secondary','data-ex="'+i+'"')+'</div></div>').join('')+
 '<div class="actions">'+button('+ Упражнение','add-ex','secondary')+button('Завершить тренировку','finish','')+button('Отменить','cancel','danger')+'</div></div>'}
-function programs(){return '<p class="muted small">Создавай собственные планы. Изменения не затрагивают уже сохранённые тренировки.</p>'+db.programs.map(p=>'<div class="card"><div class="row"><h2>'+esc(p.name)+'</h2>'+button('Удалить','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map(e=>'<div class="list-item row"><span>'+esc(e.name)+'</span>'+button('×','delete-exercise','secondary','data-id="'+esc(p.id)+'" data-exid="'+esc(e.id)+'"')+'</div>').join('')+'<div class="actions">'+button('+ Упражнение','program-ex','ghost','data-id="'+esc(p.id)+'"')+button('Начать','start','','data-id="'+esc(p.id)+'"')+'</div></div>').join('')+button('+ Новая программа','new-program','full')}
+let calendarState=null;
+const dayKey=value=>{const d=new Date(value);return Number.isNaN(d.getTime())?'':d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const amount=value=>num(value).toLocaleString('ru-RU',{maximumFractionDigits:10});
+function exerciseDays(exercise){
+ const days=new Map();
+ for(const session of db.sessions){
+  const key=dayKey(session.finished);if(!key)continue;
+  for(const recorded of session.exercises||[]){
+   // Stable IDs survive renaming; name fallback supports older entries without IDs.
+   if(recorded.id&&exercise.id?recorded.id!==exercise.id:recorded.name!==exercise.name)continue;
+   const sets=(recorded.sets||[]).filter(set=>set.done);if(!sets.length)continue;
+   if(!days.has(key))days.set(key,[]);days.get(key).push(...sets);
+  }
+ }
+ return [...days].sort((a,b)=>b[0].localeCompare(a[0]));
+}
+function resultView(entry){
+ if(!entry)return '<p class="muted small">Нет выполненных подходов</p>';
+ const [key,sets]=entry;
+ return '<div class="exercise-result"><div class="small muted">'+date(key+'T12:00:00')+'</div><ol class="result-sets">'+sets.map(t=>'<li>'+amount(t.weight)+' кг × '+amount(t.reps)+'</li>').join('')+'</ol><strong class="small result-volume">Тоннаж: '+amount(sets.reduce((sum,t)=>sum+num(t.weight)*num(t.reps),0))+' кг</strong></div>';
+}
+function calendarView(days,attrs){
+ const state=calendarState,first=new Date(state.year,state.month,1),count=new Date(state.year,state.month+1,0).getDate(),offset=(first.getDay()+6)%7,recorded=new Set(days.map(d=>d[0]));
+ let cells='<span aria-hidden="true"></span>'.repeat(offset);
+ for(let n=1;n<=count;n++){
+  const key=dayKey(new Date(state.year,state.month,n,12)),has=recorded.has(key);
+  cells+='<button type="button" class="calendar-day '+(has?'has-record ':'')+(state.day===key?'selected':'')+'" data-action="calendar-day" data-day="'+key+'" '+attrs+' '+(has?'':'disabled')+' aria-label="'+date(key+'T12:00:00')+(has?', есть запись':'')+'" aria-pressed="'+(state.day===key)+'">'+n+'</button>';
+ }
+ return '<div class="exercise-calendar" role="group" aria-label="Календарь результатов"><div class="row calendar-heading">'+button('‹','calendar-prev','secondary',attrs+' aria-label="Предыдущий месяц"')+'<strong>'+esc(first.toLocaleDateString('ru-RU',{month:'long',year:'numeric'}))+'</strong>'+button('›','calendar-next','secondary',attrs+' aria-label="Следующий месяц"')+'</div><div class="calendar-grid">'+['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d=>'<span class="muted tiny">'+d+'</span>').join('')+cells+'</div><p class="muted tiny">Лаймом отмечены дни с выполненными подходами.</p>'+button('Закрыть календарь','calendar-close','ghost',attrs)+'</div>';
+}
+function programs(){return '<p class="muted small">Последние выполненные подходы у каждого упражнения. Нажми на календарь, чтобы выбрать другой день.</p>'+db.programs.map((p,pi)=>'<div class="card"><div class="row"><h2>'+esc(p.name)+'</h2>'+button('Удалить','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map((e,ei)=>{
+ const days=exerciseDays(e),open=calendarState?.pi===pi&&calendarState?.ei===ei,attrs='data-pi="'+pi+'" data-ei="'+ei+'"';
+ return '<div class="list-item"><div class="row"><strong class="program-exercise-name">'+esc(e.name)+'</strong><div class="exercise-tools">'+button('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>','calendar-toggle','ghost calendar-toggle',attrs+' aria-label="Календарь: '+esc(e.name)+'" aria-expanded="'+open+'"')+button('×','delete-exercise','secondary','data-id="'+esc(p.id)+'" data-exid="'+esc(e.id)+'" aria-label="Удалить упражнение"')+'</div></div><p class="tiny muted result-label">'+(open?'Результат выбранной даты':'Последний результат')+'</p>'+resultView(open?days.find(d=>d[0]===calendarState.day):days[0])+(open?calendarView(days,attrs):'')+'</div>';
+ }).join('')+'<div class="actions">'+button('+ Упражнение','program-ex','ghost','data-id="'+esc(p.id)+'"')+button('Начать','start','','data-id="'+esc(p.id)+'"')+'</div></div>').join('')+button('+ Новая программа','new-program','full')}
+function calendarAction(action,b){
+ const pi=Number(b.dataset.pi),ei=Number(b.dataset.ei);
+ if(action==='calendar-toggle'){
+  if(calendarState?.pi===pi&&calendarState?.ei===ei)calendarState=null;
+  else{const latest=exerciseDays(db.programs[pi].exercises[ei])[0]?.[0],d=latest?new Date(latest+'T12:00:00'):new Date();calendarState={pi,ei,day:latest,year:d.getFullYear(),month:d.getMonth()}}
+ }else if(action==='calendar-close')calendarState=null;
+ else if(calendarState){
+  if(action==='calendar-day')calendarState.day=b.dataset.day;
+  else{const d=new Date(calendarState.year,calendarState.month+(action==='calendar-prev'?-1:1),1);calendarState.year=d.getFullYear();calendarState.month=d.getMonth()}
+ }
+ render();
+ const target=action==='calendar-close'||(action==='calendar-toggle'&&!calendarState)?'calendar-toggle':action;
+ document.querySelector('[data-action="'+target+'"][data-pi="'+pi+'"][data-ei="'+ei+'"]'+(action==='calendar-day'?'[data-day="'+b.dataset.day+'"]':''))?.focus({preventScroll:true});
+}
 function history(){return db.sessions.length?db.sessions.slice().reverse().map(s=>'<div class="card"><div class="row"><h2>'+esc(s.name)+'</h2><span class="muted small">'+date(s.finished)+'</span></div><p class="muted small">'+doneSets(s)+' подходов · '+Math.round(volume(s))+' кг</p>'+s.exercises.map(e=>'<div class="list-item"><strong>'+esc(e.name)+'</strong><div class="muted small">'+e.sets.filter(t=>t.done).map(t=>esc(t.weight)+' кг × '+esc(t.reps)).join(' · ')+'</div></div>').join('')+'</div>').join(''):'<div class="empty"><strong>История пока пуста</strong>Заверши первую тренировку, и она появится здесь.</div>'}
 function progress(){if(!db.sessions.length)return '<div class="empty"><strong>Прогресс начинается с первой тренировки</strong>Заверши тренировку, чтобы увидеть результаты.</div>';const names=[...new Set(db.sessions.flatMap(s=>s.exercises.map(e=>e.name)))];return '<div class="card"><h2>Общий прогресс</h2><div class="row"><div class="metric"><strong>'+db.sessions.length+'</strong><small>Тренировок</small></div><div class="metric"><strong>'+Math.round(db.sessions.reduce((a,s)=>a+volume(s),0))+'</strong><small>Всего кг</small></div></div></div><h2 class="section-title">Максимальные рабочие веса</h2>'+names.map(n=>{const points=db.sessions.flatMap(s=>s.exercises.filter(e=>e.name===n).flatMap(e=>e.sets.filter(t=>t.done).map(t=>num(t.weight))));const max=Math.max(...points,0);return '<div class="card"><div class="row"><strong>'+esc(n)+'</strong><strong>'+max+' кг</strong></div><div class="bar"><span style="width:'+(max?100:0)+'%"></span></div><p class="muted tiny">'+points.length+' записанных подходов</p></div>'}).join('')}
 function finish(){if(!db.active)return;if(!doneSets(db.active)){toast('Отметь хотя бы один выполненный подход');return}db.active.finished=new Date().toISOString();db.sessions.push(db.active);db.active=null;save();timerUntil=0;navigate('history');toast('Тренировка сохранена')}
 function ask(text){const value=prompt(text);return value&&value.trim()?value.trim().slice(0,80):null}
 document.addEventListener('click',e=>{const navButton=e.target.closest('[data-tab]');if(navButton){navigate(navButton.dataset.tab);return}const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,id=b.dataset.id,ex=Number(b.dataset.ex),set=Number(b.dataset.set);
+if(a.startsWith('calendar-')){calendarAction(a,b);return}
 if(a==='start'){if(db.active){toast('Сначала заверши текущую тренировку');navigate('home')}else start(id)}
 if(a==='rest'){timerUntil=Date.now()+Number(b.dataset.seconds)*1000;tick()}
 if(a==='stop-rest'){timerUntil=0;tick()}
@@ -49,12 +97,13 @@ if(a==='add-ex'){const n=ask('Название упражнения');if(n){db.a
 if(a==='finish')finish();
 if(a==='cancel'&&confirm('Отменить тренировку? Несохранённые подходы будут потеряны.')){db.active=null;save();timerUntil=0;render()}
 if(a==='new-program'){const n=ask('Название новой программы');if(n){db.programs.push({id:uid(),name:n,exercises:[]});save();render()}}
-if(a==='delete-program'&&confirm('Удалить программу? История тренировок сохранится.')){db.programs=db.programs.filter(p=>p.id!==id);save();render()}
+if(a==='delete-program'&&confirm('Удалить программу? История тренировок сохранится.')){calendarState=null;db.programs=db.programs.filter(p=>p.id!==id);save();render()}
 if(a==='program-ex'){const n=ask('Название упражнения');if(n){db.programs.find(p=>p.id===id).exercises.push({id:uid(),name:n});save();render()}}
-if(a==='delete-exercise'&&confirm('Удалить упражнение?')){const p=db.programs.find(p=>p.id===id);p.exercises=p.exercises.filter(e=>e.id!==b.dataset.exid);save();render()}
+if(a==='delete-exercise'&&confirm('Удалить упражнение?')){calendarState=null;const p=db.programs.find(p=>p.id===id);p.exercises=p.exercises.filter(e=>e.id!==b.dataset.exid);save();render()}
 });
 document.addEventListener('change',e=>{const input=e.target.closest('[data-field]');if(!input||!db.active)return;const t=db.active.exercises[Number(input.dataset.ex)]?.sets[Number(input.dataset.set)];if(!t)return;t[input.dataset.field]=num(input.value);save()});
 function tick(){const el=$('timer-text');if(!el)return;const remaining=Math.max(0,Math.ceil((timerUntil-Date.now())/1000));el.textContent=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');if(!remaining&&timerUntil){timerUntil=0;toast('Время отдыха закончилось');if(navigator.vibrate)navigator.vibrate(200)}}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&calendarState){const {pi,ei}=calendarState;calendarAction('calendar-close',{dataset:{pi,ei}})}});
 setInterval(tick,1000);
 try{window.Telegram?.WebApp?.ready();window.Telegram?.WebApp?.expand();const name=window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name;if(name)$('avatar').textContent=name.slice(0,2).toUpperCase()}catch{}
 render();
