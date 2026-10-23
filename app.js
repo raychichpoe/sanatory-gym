@@ -76,7 +76,8 @@ const volume=s=>s.exercises.reduce((a,e)=>a+e.sets.filter(t=>t.done).reduce((b,t
 const doneSets=s=>s.exercises.reduce((a,e)=>a+e.sets.filter(t=>t.done).length,0);
 function toast(message){const el=$('toast');el.textContent=message;el.style.display='block';clearTimeout(toast.id);toast.id=setTimeout(()=>el.style.display='none',2200)}
 function button(label,action,cls='secondary',attrs=''){return '<button type="button" class="btn '+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>'}
-function navigate(next){calendarState=null;tab=next;render()}
+const expandedPrograms=new Set();
+function navigate(next){expandedPrograms.clear();calendarState=null;tab=next;render()}
 function render(){const titles={home:'Workouts',programs:'My programs',history:'History',progress:'Progress',weight:'Weight'};$('page-title').textContent=titles[tab];document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('content').innerHTML=tab==='home'?home():tab==='programs'?programs():tab==='history'?history():tab==='weight'?weightView():progress();tick()}
 function home(){if(db.active)return activeView();const last=db.sessions.slice().sort((a,b)=>new Date(b.finished)-new Date(a.finished))[0];
 return '<section class="card hero mascot-hero"><h2 lang="ru">Не базарим,<br>а тренируемся</h2><img class="workout-mascot" src="./assets/workout-mascot-v2.png" alt="" width="1122" height="1402" fetchpriority="high"></section>'+
@@ -123,10 +124,10 @@ function calendarView(days,attrs){
  }
  return '<div class="exercise-calendar" role="group" aria-label="Results calendar"><div class="row calendar-heading">'+button('‹','calendar-prev','secondary',attrs+' aria-label="Previous month"')+'<strong>'+esc(first.toLocaleDateString('en-GB',{month:'long',year:'numeric'}))+'</strong>'+button('›','calendar-next','secondary',attrs+' aria-label="Next month"')+'</div><div class="calendar-grid">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>'<span class="muted tiny">'+d+'</span>').join('')+cells+'</div><p class="muted tiny">Highlighted days have completed sets.</p>'+button('Close calendar','calendar-close','ghost',attrs)+'</div>';
 }
-function programs(){return '<p class="muted small">Your latest completed sets for each exercise. Tap the calendar to view another day.</p>'+db.programs.map((p,pi)=>'<div class="card"><div class="row"><h2>'+esc(p.name)+'</h2>'+button('Delete','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map((e,ei)=>{
+function programs(){return '<p class="muted small">Tap a program to view its exercises and latest results.</p>'+db.programs.map((p,pi)=>'<details class="card program-details" data-program-id="'+esc(p.id)+'" '+(expandedPrograms.has(String(p.id))?'open':'')+'><summary class="program-summary"><span><strong>'+esc(p.name)+'</strong><span class="muted small program-count">'+p.exercises.length+' exercises</span></span><span class="program-chevron" aria-hidden="true">⌄</span></summary><div class="program-body"><div class="actions program-manage">'+button('Delete program','delete-program','danger','data-id="'+esc(p.id)+'"')+'</div>'+p.exercises.map((e,ei)=>{
  const days=exerciseDays(e),open=calendarState?.pi===pi&&calendarState?.ei===ei,attrs='data-pi="'+pi+'" data-ei="'+ei+'"';
  return '<div class="list-item"><div class="row"><div class="program-exercise-name"><strong>'+esc(exerciseName(e))+'</strong>'+muscleTag(e)+'</div><div class="exercise-tools">'+button('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>','calendar-toggle','ghost calendar-toggle',attrs+' aria-label="Calendar: '+esc(exerciseName(e))+'" aria-expanded="'+open+'"')+button('×','delete-exercise','secondary','data-id="'+esc(p.id)+'" data-exid="'+esc(e.id)+'" aria-label="Remove exercise"')+'</div></div><p class="tiny muted result-label">'+(open?'Selected date':'Latest result')+'</p>'+resultView(open?days.find(d=>d[0]===calendarState.day):days[0])+(open?calendarView(days,attrs):'')+'</div>';
- }).join('')+'<div class="actions">'+button('+ Exercise','program-ex','ghost','data-id="'+esc(p.id)+'"')+button('Start','start','','data-id="'+esc(p.id)+'"')+'</div></div>').join('')+button('+ New program','new-program','full')}
+ }).join('')+'<div class="actions">'+button('+ Exercise','program-ex','ghost','data-id="'+esc(p.id)+'"')+button('Start','start','','data-id="'+esc(p.id)+'"')+'</div></div></details>').join('')+button('+ New program','new-program','full')}
 function calendarAction(action,b){
  const pi=Number(b.dataset.pi),ei=Number(b.dataset.ei);
  if(action==='calendar-toggle'){
@@ -238,6 +239,7 @@ if(a==='delete-program'&&confirm('Delete this program? Workout history will be k
 if(a==='program-ex'){const n=await ask('Add exercise'),p=db.programs.find(p=>p.id===id);if(n&&p){p.exercises.push({id:uid(),name:n});save();render()}}
 if(a==='delete-exercise'&&confirm('Remove this exercise?')){calendarState=null;const p=db.programs.find(p=>p.id===id);p.exercises=p.exercises.filter(e=>e.id!==b.dataset.exid);save();render()}
 });
+document.addEventListener('toggle',event=>{const el=event.target;if(!el.matches?.('.program-details'))return;const id=el.dataset.programId;if(el.open)expandedPrograms.add(id);else expandedPrograms.delete(id)},true);
 document.addEventListener('change',e=>{const input=e.target.closest('[data-field]');if(!input||!db.active)return;const t=db.active.exercises[Number(input.dataset.ex)]?.sets[Number(input.dataset.set)];if(!t)return;t[input.dataset.field]=num(input.value);save()});
 function tick(){const el=$('timer-text');if(!el)return;const remaining=Math.max(0,Math.ceil((timerUntil-Date.now())/1000));el.textContent=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');if(!remaining&&timerUntil){timerUntil=0;toast('Rest time is over');if(navigator.vibrate)navigator.vibrate(200)}}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&calendarState){const {pi,ei}=calendarState;calendarAction('calendar-close',{dataset:{pi,ei}})}});
