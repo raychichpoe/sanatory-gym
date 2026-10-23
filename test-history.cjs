@@ -13,7 +13,7 @@ const stored=JSON.stringify(data),listeners={},elements={};let writes=0;
 const context={console,Date,Map,Set,Number,String,JSON,Math,crypto:require('node:crypto').webcrypto,navigator:{},window:{},setInterval(){},clearTimeout(){},setTimeout(){},localStorage:{getItem:()=>stored,setItem(){writes++}},document:{getElementById(id){return elements[id]??={textContent:'',innerHTML:'',style:{}}},querySelectorAll:()=>[],querySelector:()=>({focus(){}}),addEventListener(type,fn){listeners[type]=fn}}};
 vm.createContext(context);
 let source=readFileSync(__dirname+'/app.js','utf8').replace(/\r\n/g,'\n');
-source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultView,programs,calendarAction,applyProgramPack,muscleTag,templates,getState:()=>calendarState};render();\n})();');
+source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultView,programs,calendarAction,applyProgramPack,muscleTag,templates,workoutCard,home,history,getState:()=>calendarState};render();\n})();');
 vm.runInContext(source,context);
 const t=context.test,days=t.exerciseDays(data.programs[0].exercises[0]);
 assert.equal(days.length,2);assert.equal(days[0][0],'2026-10-22');assert.equal(days[0][1].length,2);
@@ -74,3 +74,13 @@ for(const [name,slug] of [['Chest','chest'],['Side delts','side-delts'],['Tricep
 assert.match(t.muscleTag({muscle:'Грудь'}),/muscle-chest">Chest</);
 assert.match(t.muscleTag({name:'Жим штанги лёжа'}),/>Chest</);
 console.log('PASS: all 11 muscle colors and English labels, including legacy Russian tags');
+
+const detailFixture={name:'Test workout',finished:'2026-10-23T12:00:00',exercises:[{name:'Bench Press',sets:[set(50,10),set(55,8),set(100,10,false)]},{name:'Leg Press',sets:[set(100,12)]},{name:'Skipped',sets:[set(10,10,false)]}]};
+const card=t.workoutCard(detailFixture,true),summary=card.match(/<summary[\s\S]*?<\/summary>/)[0];
+assert.match(summary,/LAST WORKOUT/);assert.doesNotMatch(summary,/Volume| kg/);
+assert.doesNotMatch(card,/<details[^>]*\bopen\b/);
+assert.match(card,/Volume: 940 kg/);assert.match(card,/Volume: 1,200 kg/);
+assert.doesNotMatch(card,/Skipped|100 kg × 10/);
+assert.doesNotMatch(t.home(),/Volume, kg/);
+assert.match(t.history(),/workout-details/);
+console.log('PASS: collapsed last workout/history cards, no summary or home volume, accurate per-exercise volume, completed exercises only');

@@ -17,3 +17,5 @@
 .muscle-rear-delts{color:#acaeff;background:#2c2e49;border-color:#acaeff66}
 .muscle-brachialis{color:#ffb991;background:#432f26;border-color:#ffb99166}
 .muscle-calves{color:#e6d591;background:#3c3825;border-color:#e6d59166}
+
+.workout-summary{display:flex;flex-direction:column;gap:8px;position:relative;padding-right:30px;cursor:pointer;list-style:none}.workout-summary::-webkit-details-marker{display:none}.workout-summary::marker{content:''}.workout-kicker{align-self:flex-start;background:#36442a;color:#c4ff55;border:1px solid #556344;border-radius:10px;padding:7px 10px;font-size:12px;font-weight:800;letter-spacing:.6px}.workout-name{font-size:18px;font-weight:750}.workout-toggle{position:absolute;right:0;top:50%;transform:translateY(-50%);color:#c4ff55;font-size:24px}.workout-details[open] .workout-toggle{transform:translateY(-50%) rotate(180deg)}.workout-summary:focus-visible{outline:2px solid #c4ff55;outline-offset:6px;border-radius:4px}.workout-breakdown{margin-top:16px;border-top:1px solid #31393c}
