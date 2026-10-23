@@ -114,3 +114,11 @@ assert.equal(t.deleteWorkout(-1),false);assert.equal(t.deleteWorkout(999),false)
 assert.equal(t.deleteWorkout(0),true);
 assert.match(t.resultView(t.exerciseDays(data.programs[0].exercises[0])[0]),/440 kg/);
 console.log('PASS: delete a single legacy workout without ID, reject invalid index, exercise history recalculated');
+
+assert.match(t.workoutCard(detailFixture),/Total workout volume: 2,140 kg/);
+const repsSeries=t.progressSeries([{finished:'2026-10-21T12:00:00',exercises:[{name:'Peck Deck',sets:[set(55,10),set(55,8),set(50,12),set(99,1,false)]}]}]);
+assert.equal(repsSeries[0].points[0].reps.join(','),'10,8');
+assert.match(t.progressChart(repsSeries[0]),/55 × 10\/8/);
+assert.match(t.progressChart(repsSeries[0]),/Reps per set/);
+assert.doesNotMatch(t.progressChart({exercise:{name:'Body weight'},points:[{day:'2026-10-21',weight:80}]},true),/Reps per set/);
+console.log('PASS: workout total excludes undone sets, repetitions match plotted weight, multiple sets retained, body-weight chart unchanged');

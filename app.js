@@ -160,7 +160,7 @@ function calendarAction(action,b){
 }
 function workoutCard(session,last=false,sessionIndex=-1){
  const exercises=(session.exercises||[]).filter(e=>(e.sets||[]).some(t=>t.done));
- return '<details class="card workout-details"><summary class="workout-summary">'+(last?'<span class="workout-kicker">LAST WORKOUT</span>':'')+'<span class="workout-name">'+esc(session.name)+'</span><span class="muted small">'+date(session.finished)+' · '+doneSets(session)+' sets</span><span class="workout-toggle" aria-hidden="true">⌄</span></summary><div class="workout-breakdown">'+exercises.map(e=>{
+ return '<details class="card workout-details"><summary class="workout-summary">'+(last?'<span class="workout-kicker">LAST WORKOUT</span>':'')+'<span class="workout-name">'+esc(session.name)+'</span><span class="muted small">'+date(session.finished)+' · '+doneSets(session)+' sets</span><span class="workout-toggle" aria-hidden="true">⌄</span></summary><div class="workout-breakdown"><p class="result-volume"><strong>Total workout volume: '+amount(volume(session))+' kg</strong></p>'+exercises.map(e=>{
   const sets=e.sets.filter(t=>t.done),tonnage=sets.reduce((sum,t)=>sum+num(t.weight)*num(t.reps),0);
   return '<div class="list-item"><strong>'+esc(exerciseName(e))+'</strong>'+muscleTag(e)+'<ol class="result-sets">'+sets.map(t=>'<li>'+amount(t.weight)+' kg × '+amount(t.reps)+'</li>').join('')+'</ol><strong class="small result-volume">Volume: '+amount(tonnage)+' kg</strong></div>';
  }).join('')+(sessionIndex>=0?'<div class="actions">'+button('Edit workout','edit-workout','secondary','data-session-index="'+sessionIndex+'"')+button('Delete workout','delete-workout','danger','data-session-index="'+sessionIndex+'"')+'</div>':'')+'</div></details>';
@@ -197,13 +197,14 @@ function progressSeries(sessions){
    const key=catalogEntry(exercise)?.[0]||exercise.id||normalizedName(exercise.name);
    if(!groups.has(key))groups.set(key,{exercise,days:new Map()});
    const group=groups.get(key),weight=Math.max(...sets.map(t=>num(t.weight)));
-   group.days.set(day,Math.max(group.days.get(day)??0,weight));
+   const reps=sets.filter(t=>num(t.weight)===weight).map(t=>num(t.reps)),previous=group.days.get(day);
+   if(!previous||weight>previous.weight)group.days.set(day,{weight,reps});else if(weight===previous.weight)previous.reps.push(...reps);
   }
  }
- return [...groups.values()].map(group=>({exercise:group.exercise,points:[...group.days].sort((a,b)=>a[0].localeCompare(b[0])).map(([day,weight])=>({day,weight}))}));
+ return [...groups.values()].map(group=>({exercise:group.exercise,points:[...group.days].sort((a,b)=>a[0].localeCompare(b[0])).map(([day,result])=>({day,...result}))}));
 }
 function progressChart(series,bodyWeight=false){
- const {exercise,points}=series,width=Math.max(320,points.length*78+72),height=235,left=48,right=24,top=20,bottom=185;
+ const {exercise,points}=series,width=Math.max(360,points.length*110+110),height=235,left=48,right=24,top=20,bottom=185;
  const minimum=bodyWeight?Math.max(0,Math.min(...points.map(p=>p.weight))-2):0;
  const ceiling=bodyWeight?Math.max(...points.map(p=>p.weight))+2:Math.max(1,...points.map(p=>p.weight))*1.15;
  const first=new Date(points[0].day+'T12:00:00').getTime(),last=new Date(points.at(-1).day+'T12:00:00').getTime();
@@ -215,12 +216,13 @@ function progressChart(series,bodyWeight=false){
   grid+='<line x1="'+left+'" y1="'+py+'" x2="'+(width-right)+'" y2="'+py+'" class="chart-gridline"/><text x="'+(left-8)+'" y="'+(py+4)+'" text-anchor="end" class="chart-axis">'+amount(Math.round(weight*10)/10)+'</text>';
  }
  const line=points.map(p=>x(p)+','+y(p.weight)).join(' ');
- const marks=points.map(p=>'<g><title>'+esc(date(p.day+'T12:00:00'))+': '+amount(p.weight)+' kg</title><circle cx="'+x(p)+'" cy="'+y(p.weight)+'" r="5" class="chart-dot"/><text x="'+x(p)+'" y="'+(y(p.weight)-11)+'" text-anchor="middle" class="chart-value">'+amount(p.weight)+'</text><text x="'+x(p)+'" y="'+(bottom+24)+'" text-anchor="middle" class="chart-axis">'+esc(new Date(p.day+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short'}))+'</text><text x="'+x(p)+'" y="'+(bottom+40)+'" text-anchor="middle" class="chart-axis">'+p.day.slice(0,4)+'</text></g>').join('');
- return '<div class="card progress-card"><h2>'+esc(exerciseName(exercise))+'</h2>'+(bodyWeight?'':muscleTag(exercise))+'<p class="muted small">'+(bodyWeight?'Body weight by date · kg':'Heaviest completed set per workout day · kg')+'</p><div class="chart-scroll" tabindex="0" role="region" aria-label="'+esc(exerciseName(exercise))+' weight chart, scroll horizontally"><svg class="progress-chart" style="min-width:'+width+'px" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Working weight by workout date"><text x="8" y="14" class="chart-axis">kg</text>'+grid+'<polyline points="'+line+'" class="chart-line"/>'+marks+'</svg></div>'+(points.length===1?'<p class="muted tiny">Your first point. Add another record to see your trend.</p>':'')+'<details class="chart-data"><summary>View all dates and weights</summary><table><thead><tr><th scope="col">Date</th><th scope="col">Weight, kg</th></tr></thead><tbody>'+points.map(p=>'<tr><td>'+esc(date(p.day+'T12:00:00'))+'</td><td>'+amount(p.weight)+'</td></tr>').join('')+'</tbody></table></details></div>';
+ const repLabel=p=>!bodyWeight&&p.reps?.length?' × '+p.reps.map(amount).join('/') : '';
+ const marks=points.map(p=>'<g><title>'+esc(date(p.day+'T12:00:00'))+': '+amount(p.weight)+' kg'+repLabel(p)+'</title><circle cx="'+x(p)+'" cy="'+y(p.weight)+'" r="5" class="chart-dot"/><text x="'+x(p)+'" y="'+(y(p.weight)-11)+'" text-anchor="middle" class="chart-value">'+amount(p.weight)+repLabel(p)+'</text><text x="'+x(p)+'" y="'+(bottom+24)+'" text-anchor="middle" class="chart-axis">'+esc(new Date(p.day+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short'}))+'</text><text x="'+x(p)+'" y="'+(bottom+40)+'" text-anchor="middle" class="chart-axis">'+p.day.slice(0,4)+'</text></g>').join('');
+ return '<div class="card progress-card"><h2>'+esc(exerciseName(exercise))+'</h2>'+(bodyWeight?'':muscleTag(exercise))+'<p class="muted small">'+(bodyWeight?'Body weight by date · kg':'Heaviest weight per day · reps shown for each set at that weight')+'</p><div class="chart-scroll" tabindex="0" role="region" aria-label="'+esc(exerciseName(exercise))+' weight chart, scroll horizontally"><svg class="progress-chart" style="min-width:'+width+'px" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Working weight by workout date"><text x="8" y="14" class="chart-axis">kg</text>'+grid+'<polyline points="'+line+'" class="chart-line"/>'+marks+'</svg></div>'+(points.length===1?'<p class="muted tiny">Your first point. Add another record to see your trend.</p>':'')+'<details class="chart-data"><summary>View all records</summary><table><thead><tr><th scope="col">Date</th><th scope="col">Weight, kg</th>'+(bodyWeight?'':'<th scope="col">Reps per set</th>')+'</tr></thead><tbody>'+points.map(p=>'<tr><td>'+esc(date(p.day+'T12:00:00'))+'</td><td>'+amount(p.weight)+'</td>'+(bodyWeight?'':'<td>'+(p.reps||[]).map(amount).join(', ')+'</td>')+'</tr>').join('')+'</tbody></table></details></div>';
 }
 function progress(){
  const series=progressSeries(db.sessions);
- return series.length?'<p class="muted small">Track your working weights over time. Each point is the heaviest completed set for that exercise on that day.</p>'+series.map(progressChart).join(''):'<div class="empty"><strong>Your progress starts with your first workout</strong>Finish a workout to see your results.</div>';
+ return series.length?'<p class="muted small">Track your working weights over time. Each point shows the heaviest weight that day and the reps in each set at that weight.</p>'+series.map(item=>progressChart(item)).join(''):'<div class="empty"><strong>Your progress starts with your first workout</strong>Finish a workout to see your results.</div>';
 }
 function weightEntries(){return (Array.isArray(db.bodyWeights)?db.bodyWeights:[]).slice().sort((a,b)=>a.day.localeCompare(b.day))}
 function validWeightEntry(day,value){
