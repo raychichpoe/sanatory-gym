@@ -83,8 +83,7 @@ function home(){if(db.active)return activeView();const last=db.sessions.slice().
 return '<section class="card hero mascot-hero"><h2 lang="ru">Не базарим,<br>а тренируемся</h2><img class="workout-mascot" src="./assets/workout-mascot-v2.png" alt="" width="1122" height="1402" fetchpriority="high"></section>'+
 '<div class="row" style="margin-bottom:18px"><div class="metric"><strong>'+db.sessions.length+'</strong><small>Workouts</small></div><div class="metric"><strong>'+db.sessions.reduce((a,s)=>a+doneSets(s),0)+'</strong><small>Sets</small></div></div>'+
 '<h2 class="section-title">Start a workout</h2>'+db.programs.map(p=>'<div class="card row"><div><strong>'+esc(p.name)+'</strong><p class="muted small">'+p.exercises.length+' exercises</p></div>'+button('Start','start','', 'data-id="'+esc(p.id)+'"')+'</div>').join('')+
-(last?workoutCard(last,true):'')+
-'<p class="notice">Your programs and workout history are saved in this browser. Cloud sync is not available yet.</p>'}
+(last?workoutCard(last,true):'')}
 function start(id){const p=db.programs.find(x=>x.id===id);if(!p)return;db.active={id:uid(),programId:p.id,name:p.name,started:new Date().toISOString(),exercises:p.exercises.map(e=>({id:e.id,name:e.name,muscle:e.muscle||catalogEntry(e)?.[2],sets:[{id:uid(),weight:0,reps:10,done:false}]}))};save();navigate('home')}
 function activeView(){const s=db.active;return '<div class="timer"><div class="row"><div><span class="small muted">REST</span><br><strong id="timer-text">00:00</strong></div><div class="actions" style="margin:0">'+button('1:30','rest','ghost','data-seconds="90"')+button('2:00','rest','ghost','data-seconds="120"')+button('3:00','rest','ghost','data-seconds="180"')+button('×','stop-rest','secondary')+'</div></div></div>'+
 '<div class="card"><span class="pill">WORKOUT IN PROGRESS</span><h2 style="margin-top:10px">'+esc(s.name)+'</h2><p class="muted small">'+doneSets(s)+' completed sets · '+Math.round(volume(s))+' kg volume</p>'+
@@ -244,6 +243,6 @@ document.addEventListener('change',e=>{const input=e.target.closest('[data-field
 function tick(){const el=$('timer-text');if(!el)return;const remaining=Math.max(0,Math.ceil((timerUntil-Date.now())/1000));el.textContent=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');if(!remaining&&timerUntil){timerUntil=0;toast('Rest time is over');if(navigator.vibrate)navigator.vibrate(200)}}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&calendarState){const {pi,ei}=calendarState;calendarAction('calendar-close',{dataset:{pi,ei}})}});
 setInterval(tick,1000);
-try{window.Telegram?.WebApp?.ready();window.Telegram?.WebApp?.expand();const name=window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name;if(name)$('avatar').textContent=name.slice(0,2).toUpperCase()}catch{}
+try{window.Telegram?.WebApp?.ready();window.Telegram?.WebApp?.expand();}catch{}
 render();
 })();
