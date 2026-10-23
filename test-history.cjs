@@ -13,7 +13,7 @@ const stored=JSON.stringify(data),listeners={},elements={};let writes=0;
 const context={console,Date,Map,Set,Number,String,JSON,Math,crypto:require('node:crypto').webcrypto,navigator:{},window:{},setInterval(){},clearTimeout(){},setTimeout(){},localStorage:{getItem:()=>stored,setItem(){writes++}},document:{getElementById(id){return elements[id]??={textContent:'',innerHTML:'',style:{}}},querySelectorAll:()=>[],querySelector:()=>({focus(){}}),addEventListener(type,fn){listeners[type]=fn}}};
 vm.createContext(context);
 let source=readFileSync(__dirname+'/app.js','utf8').replace(/\r\n/g,'\n');
-source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultView,programs,calendarAction,applyProgramPack,muscleTag,templates,workoutCard,home,history,getState:()=>calendarState};render();\n})();');
+source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultView,programs,calendarAction,applyProgramPack,muscleTag,templates,workoutCard,home,history,progressSeries,progressChart,progress,getState:()=>calendarState};render();\n})();');
 vm.runInContext(source,context);
 const t=context.test,days=t.exerciseDays(data.programs[0].exercises[0]);
 assert.equal(days.length,2);assert.equal(days[0][0],'2026-10-22');assert.equal(days[0][1].length,2);
@@ -84,3 +84,18 @@ assert.doesNotMatch(card,/Skipped|100 kg × 10/);
 assert.doesNotMatch(t.home(),/Volume, kg/);
 assert.match(t.history(),/workout-details/);
 console.log('PASS: collapsed last workout/history cards, no summary or home volume, accurate per-exercise volume, completed exercises only');
+
+const chartSessions=[
+ {finished:'2026-11-12T12:00:00',exercises:[{id:'new',name:'Peck Deck',sets:[set(65,8),set(90,10,false)]}]},
+ {finished:'2026-10-21T12:00:00',exercises:[{id:'old',name:'Pec Deck',sets:[set(40,10),set(45,8)]}]},
+ {finished:'2026-10-25T12:00:00',exercises:[{id:'old',name:'Pec Deck',sets:[set(50,10)]}]},
+ {finished:'2026-10-25T18:00:00',exercises:[{id:'other',name:'Peck Deck',sets:[set(55,8)]}]},
+ {finished:'invalid',exercises:[{name:'Peck Deck',sets:[set(999,1)]}]}
+];
+const chartBefore=JSON.stringify(chartSessions),series=t.progressSeries(chartSessions);
+assert.equal(series.length,1);assert.equal(series[0].points.map(p=>p.weight).join(','),'45,55,65');assert.equal(series[0].points[0].day,'2026-10-21');
+assert.equal(JSON.stringify(chartSessions),chartBefore);
+assert.match(t.progressChart(series[0]),/<polyline/);assert.match(t.progressChart(series[0]),/12 Nov 2026/);
+const zero=t.progressSeries([{finished:'2026-10-21T12:00:00',exercises:[{name:'Bodyweight',sets:[set(0,10)]}]}]);assert.doesNotMatch(t.progressChart(zero[0]),/NaN|Infinity/);
+assert.doesNotMatch(t.progress(),/Overall progress|Total kg/);
+console.log('PASS: chart dates sorted, aliases merged, same-day maximum, unfinished sets excluded, zero/single-point charts, data preserved');

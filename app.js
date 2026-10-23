@@ -149,7 +149,39 @@ function workoutCard(session,last=false){
  }).join('')+'</div></details>';
 }
 function history(){return db.sessions.length?db.sessions.slice().sort((a,b)=>new Date(b.finished)-new Date(a.finished)).map(s=>workoutCard(s)).join(''):'<div class="empty"><strong>No workouts yet</strong>Finish your first workout to see it here.</div>'}
-function progress(){if(!db.sessions.length)return '<div class="empty"><strong>Your progress starts with your first workout</strong>Finish a workout to see your results.</div>';const names=[...new Set(db.sessions.flatMap(s=>s.exercises.map(e=>e.name)))];return '<div class="card"><h2>Overall progress</h2><div class="row"><div class="metric"><strong>'+db.sessions.length+'</strong><small>Workouts</small></div><div class="metric"><strong>'+Math.round(db.sessions.reduce((a,s)=>a+volume(s),0))+'</strong><small>Total kg</small></div></div></div><h2 class="section-title">Heaviest working weights</h2>'+names.map(n=>{const points=db.sessions.flatMap(s=>s.exercises.filter(e=>e.name===n).flatMap(e=>e.sets.filter(t=>t.done).map(t=>num(t.weight))));const max=Math.max(...points,0);return '<div class="card"><div class="row"><strong>'+esc(exerciseName({name:n}))+'</strong><strong>'+max+' kg</strong></div><div class="bar"><span style="width:'+(max?100:0)+'%"></span></div><p class="muted tiny">'+points.length+' recorded sets</p></div>'}).join('')}
+function progressSeries(sessions){
+ const groups=new Map();
+ for(const session of sessions){
+  const day=dayKey(session.finished);if(!day)continue;
+  for(const exercise of session.exercises||[]){
+   const sets=(exercise.sets||[]).filter(t=>t.done);if(!sets.length)continue;
+   const key=catalogEntry(exercise)?.[0]||exercise.id||normalizedName(exercise.name);
+   if(!groups.has(key))groups.set(key,{exercise,days:new Map()});
+   const group=groups.get(key),weight=Math.max(...sets.map(t=>num(t.weight)));
+   group.days.set(day,Math.max(group.days.get(day)??0,weight));
+  }
+ }
+ return [...groups.values()].map(group=>({exercise:group.exercise,points:[...group.days].sort((a,b)=>a[0].localeCompare(b[0])).map(([day,weight])=>({day,weight}))}));
+}
+function progressChart(series){
+ const {exercise,points}=series,width=Math.max(320,points.length*78+72),height=235,left=48,right=24,top=20,bottom=185;
+ const ceiling=Math.max(1,...points.map(p=>p.weight))*1.15;
+ const first=new Date(points[0].day+'T12:00:00').getTime(),last=new Date(points.at(-1).day+'T12:00:00').getTime();
+ const x=p=>points.length===1?(left+width-right)/2:left+(new Date(p.day+'T12:00:00').getTime()-first)/(last-first)*(width-left-right);
+ const y=weight=>bottom-weight/ceiling*(bottom-top);
+ let grid='';
+ for(let i=0;i<=4;i++){
+  const weight=ceiling*i/4,py=y(weight);
+  grid+='<line x1="'+left+'" y1="'+py+'" x2="'+(width-right)+'" y2="'+py+'" class="chart-gridline"/><text x="'+(left-8)+'" y="'+(py+4)+'" text-anchor="end" class="chart-axis">'+amount(Math.round(weight*10)/10)+'</text>';
+ }
+ const line=points.map(p=>x(p)+','+y(p.weight)).join(' ');
+ const marks=points.map(p=>'<g><title>'+esc(date(p.day+'T12:00:00'))+': '+amount(p.weight)+' kg</title><circle cx="'+x(p)+'" cy="'+y(p.weight)+'" r="5" class="chart-dot"/><text x="'+x(p)+'" y="'+(y(p.weight)-11)+'" text-anchor="middle" class="chart-value">'+amount(p.weight)+'</text><text x="'+x(p)+'" y="'+(bottom+24)+'" text-anchor="middle" class="chart-axis">'+esc(new Date(p.day+'T12:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short'}))+'</text><text x="'+x(p)+'" y="'+(bottom+40)+'" text-anchor="middle" class="chart-axis">'+p.day.slice(0,4)+'</text></g>').join('');
+ return '<div class="card progress-card"><h2>'+esc(exerciseName(exercise))+'</h2>'+muscleTag(exercise)+'<p class="muted small">Heaviest completed set per workout day · kg</p><div class="chart-scroll" tabindex="0" role="region" aria-label="'+esc(exerciseName(exercise))+' weight chart, scroll horizontally"><svg class="progress-chart" style="min-width:'+width+'px" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Working weight by workout date"><text x="8" y="14" class="chart-axis">kg</text>'+grid+'<polyline points="'+line+'" class="chart-line"/>'+marks+'</svg></div>'+(points.length===1?'<p class="muted tiny">Your first point. Complete another workout to see your trend.</p>':'')+'<details class="chart-data"><summary>View all dates and weights</summary><table><thead><tr><th scope="col">Workout date</th><th scope="col">Weight, kg</th></tr></thead><tbody>'+points.map(p=>'<tr><td>'+esc(date(p.day+'T12:00:00'))+'</td><td>'+amount(p.weight)+'</td></tr>').join('')+'</tbody></table></details></div>';
+}
+function progress(){
+ const series=progressSeries(db.sessions);
+ return series.length?'<p class="muted small">Track your working weights over time. Each point is the heaviest completed set for that exercise on that day.</p>'+series.map(progressChart).join(''):'<div class="empty"><strong>Your progress starts with your first workout</strong>Finish a workout to see your results.</div>';
+}
 function finish(){if(!db.active)return;if(!doneSets(db.active)){toast('Mark at least one set as completed');return}db.active.finished=new Date().toISOString();db.sessions.push(db.active);db.active=null;save();timerUntil=0;navigate('history');toast('Workout saved')}
 function ask(text){return new Promise(resolve=>{
  const previous=document.activeElement,dialog=document.createElement('dialog');
