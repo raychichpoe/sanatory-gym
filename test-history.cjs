@@ -13,7 +13,7 @@ const stored=JSON.stringify(data),listeners={},elements={};let writes=0;
 const context={console,Date,Map,Set,Number,String,JSON,Math,crypto:require('node:crypto').webcrypto,navigator:{},window:{},setInterval(){},clearTimeout(){},setTimeout(){},localStorage:{getItem:()=>stored,setItem(){writes++}},document:{getElementById(id){return elements[id]??={textContent:'',innerHTML:'',style:{}}},querySelectorAll:()=>[],querySelector:()=>({focus(){}}),addEventListener(type,fn){listeners[type]=fn}}};
 vm.createContext(context);
 let source=readFileSync(__dirname+'/app.js','utf8').replace(/\r\n/g,'\n');
-source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultView,programs,calendarAction,applyProgramPack,muscleTag,templates,workoutCard,home,history,progressSeries,progressChart,progress,getState:()=>calendarState};render();\n})();');
+source=source.replace('render();\n})();','globalThis.test={exerciseDays,resultView,programs,calendarAction,applyProgramPack,muscleTag,templates,workoutCard,home,history,progressSeries,progressChart,progress,validWeightEntry,recordBodyWeight,weightEntries,weightView,getState:()=>calendarState};render();\n})();');
 vm.runInContext(source,context);
 const t=context.test,days=t.exerciseDays(data.programs[0].exercises[0]);
 assert.equal(days.length,2);assert.equal(days[0][0],'2026-10-22');assert.equal(days[0][1].length,2);
@@ -99,3 +99,8 @@ assert.match(t.progressChart(series[0]),/<polyline/);assert.match(t.progressChar
 const zero=t.progressSeries([{finished:'2026-10-21T12:00:00',exercises:[{name:'Bodyweight',sets:[set(0,10)]}]}]);assert.doesNotMatch(t.progressChart(zero[0]),/NaN|Infinity/);
 assert.doesNotMatch(t.progress(),/Overall progress|Total kg/);
 console.log('PASS: chart dates sorted, aliases merged, same-day maximum, unfinished sets excluded, zero/single-point charts, data preserved');
+
+assert.equal(t.validWeightEntry('2026-02-30',75),false);assert.equal(t.validWeightEntry('2026-01-01',0),false);assert.equal(t.validWeightEntry('2026-01-01','bad'),false);assert.equal(t.validWeightEntry('2099-01-01',75),false);
+assert.equal(t.recordBodyWeight('2026-01-03','80.5'),true);assert.equal(t.recordBodyWeight('2026-01-01',82),true);assert.equal(t.recordBodyWeight('2026-01-03',80),true);
+assert.equal(t.weightEntries().length,2);assert.equal(t.weightEntries()[0].day,'2026-01-01');assert.match(t.weightView(),/−2 kg/);assert.match(t.weightView(),/Body weight by date/);assert.doesNotMatch(t.weightView(),/Heaviest completed/);
+console.log('PASS: body weight validation, chronological dates, update same date, weight change, body weight chart');
